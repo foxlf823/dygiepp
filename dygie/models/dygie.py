@@ -11,7 +11,7 @@ from allennlp.data import Vocabulary
 from allennlp.common.params import Params
 from allennlp.models.model import Model
 from allennlp.modules import Seq2SeqEncoder, TextFieldEmbedder, FeedForward
-from allennlp.modules.span_extractors import SelfAttentiveSpanExtractor, EndpointSpanExtractor
+from allennlp.modules.span_extractors import SelfAttentiveSpanExtractor, EndpointSpanExtractor, SpanExtractor
 from allennlp.nn import util, InitializerApplicator, RegularizerApplicator
 
 # Import submodules.
@@ -65,7 +65,8 @@ class DyGIE(Model):
                  co_train: bool = False,
                  initializer: InitializerApplicator = InitializerApplicator(),
                  regularizer: Optional[RegularizerApplicator] = None,
-                 display_metrics: List[str] = None) -> None:
+                 display_metrics: List[str] = None,
+                 span_extractor: SpanExtractor = None) -> None:
         super(DyGIE, self).__init__(vocab, regularizer)
 
         self._text_field_embedder = text_field_embedder
@@ -91,11 +92,15 @@ class DyGIE(Model):
 
         # Make endpoint span extractor.
 
-        self._endpoint_span_extractor = EndpointSpanExtractor(context_layer.get_output_dim(),
-                                                              combination="x,y",
-                                                              num_width_embeddings=max_span_width,
-                                                              span_width_embedding_dim=feature_size,
-                                                              bucket_widths=False)
+        # self._endpoint_span_extractor = EndpointSpanExtractor(context_layer.get_output_dim(),
+        #                                                       combination="x,y",
+        #                                                       num_width_embeddings=max_span_width,
+        #                                                       span_width_embedding_dim=feature_size,
+        #                                                       bucket_widths=False)
+        # feili
+        self._endpoint_span_extractor = span_extractor
+
+
         if use_attentive_span_extractor:
             self._attentive_span_extractor = SelfAttentiveSpanExtractor(
                 input_dim=text_field_embedder.get_output_dim())
