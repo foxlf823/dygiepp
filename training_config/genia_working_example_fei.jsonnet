@@ -91,8 +91,8 @@ local params = {
   // add by feili
   evaluate_on_test: true,
   // endpoint, pooling, conv, attention, rnn
-  span_extractor: "conv",
-  combination: "3,max"
+  span_extractor: "rnn",
+  combination: "x,y"
 };
 
 ////////////////////

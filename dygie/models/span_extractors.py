@@ -9,6 +9,10 @@ from allennlp.modules.time_distributed import TimeDistributed
 from torch.nn.init import xavier_normal_
 from torch.nn import Conv1d
 from math import floor
+from allennlp.modules.span_extractors.self_attentive_span_extractor import SelfAttentiveSpanExtractor
+from allennlp.modules.seq2seq_encoders.pytorch_seq2seq_wrapper import PytorchSeq2SeqWrapper
+from allennlp.modules.stacked_bidirectional_lstm import StackedBidirectionalLstm
+from allennlp.modules.span_extractors.bidirectional_endpoint_span_extractor import BidirectionalEndpointSpanExtractor
 
 @SpanExtractor.register("pooling")
 class PoolingSpanExtractor(SpanExtractor):
@@ -223,5 +227,112 @@ class ConvSpanExtractor(SpanExtractor):
             # Embed the span widths and concatenate to the rest of the representations.
             span_width_embeddings = self._span_width_embedding(span_widths.squeeze(-1))
             span_embeddings = torch.cat([span_embeddings, span_width_embeddings], -1)
+
+        return span_embeddings
+
+
+@SpanExtractor.register("attention")
+class AttentionSpanExtractor(SpanExtractor):
+
+    def __init__(self,
+                 input_dim: int,
+                 combination: str = "max",
+                 num_width_embeddings: int = None,
+                 span_width_embedding_dim: int = None,
+                 bucket_widths: bool = False,
+                 use_exclusive_start_indices: bool = False) -> None:
+        super().__init__()
+
+        self._input_dim = input_dim
+        self._combination = combination
+        self._num_width_embeddings = num_width_embeddings
+        self._bucket_widths = bucket_widths
+        if bucket_widths:
+            raise ConfigurationError("not support")
+
+        self._use_exclusive_start_indices = use_exclusive_start_indices
+        if use_exclusive_start_indices:
+            raise ConfigurationError("not support")
+
+        if num_width_embeddings is not None and span_width_embedding_dim is not None:
+            self._span_width_embedding = Embedding(num_width_embeddings, span_width_embedding_dim)
+        elif not all([num_width_embeddings is None, span_width_embedding_dim is None]):
+            raise ConfigurationError("To use a span width embedding representation, you must"
+                                     "specify both num_width_buckets and span_width_embedding_dim.")
+        else:
+            self._span_width_embedding = None
+
+        # the allennlp SelfAttentiveSpanExtractor doesn't include span width embedding.
+        self._self_attentive = SelfAttentiveSpanExtractor(self._input_dim)
+
+
+    def get_input_dim(self) -> int:
+        return self._input_dim
+
+    def get_output_dim(self) -> int:
+        combined_dim = self._input_dim
+        if self._span_width_embedding is not None:
+            return combined_dim + self._span_width_embedding.get_output_dim()
+        return combined_dim
+
+    @overrides
+    def forward(self,
+                sequence_tensor: torch.FloatTensor,
+                span_indices: torch.LongTensor,
+                sequence_mask: torch.LongTensor = None,
+                span_indices_mask: torch.LongTensor = None) -> None:
+
+        span_embeddings = self._self_attentive(sequence_tensor, span_indices, sequence_mask, span_indices_mask)
+
+        if self._span_width_embedding is not None:
+            # both of shape (batch_size, num_spans, 1)
+            span_starts, span_ends = span_indices.split(1, dim=-1)
+            # shape (batch_size, num_spans, 1)
+            # These span widths are off by 1, because the span ends are `inclusive`.
+            span_widths = span_ends - span_starts
+            # Embed the span widths and concatenate to the rest of the representations.
+            span_width_embeddings = self._span_width_embedding(span_widths.squeeze(-1))
+            span_embeddings = torch.cat([span_embeddings, span_width_embeddings], -1)
+
+        return span_embeddings
+
+
+@SpanExtractor.register("rnn")
+class RnnSpanExtractor(SpanExtractor):
+
+    def __init__(self,
+                 input_dim: int,
+                 combination: str = "x,y",
+                 num_width_embeddings: int = None,
+                 span_width_embedding_dim: int = None,
+                 bucket_widths: bool = False,
+                 use_exclusive_start_indices: bool = False) -> None:
+        super().__init__()
+
+        self._input_dim = input_dim
+        self._combination = combination
+
+        self._encoder = PytorchSeq2SeqWrapper(StackedBidirectionalLstm(self._input_dim, int(floor(self._input_dim / 2)), 1))
+        self._span_extractor = BidirectionalEndpointSpanExtractor(self._input_dim, "y", "y",
+                                                                  num_width_embeddings, span_width_embedding_dim, bucket_widths)
+
+    def get_input_dim(self) -> int:
+        return self._input_dim
+
+    def get_output_dim(self) -> int:
+        return self._span_extractor.get_output_dim()
+
+    @overrides
+    def forward(self,
+                sequence_tensor: torch.FloatTensor,
+                span_indices: torch.LongTensor,
+                sequence_mask: torch.LongTensor = None,
+                span_indices_mask: torch.LongTensor = None) -> None:
+
+        # Shape: (batch_size, sequence_length, embedding_dim)
+        encoder_sequence_tensor = self._encoder(sequence_tensor, sequence_mask)
+
+        # Shape: (batch_size, num_spans, embedding_dim)
+        span_embeddings = self._span_extractor(encoder_sequence_tensor, span_indices, sequence_mask, span_indices_mask)
 
         return span_embeddings

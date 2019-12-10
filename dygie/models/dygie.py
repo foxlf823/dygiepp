@@ -227,7 +227,7 @@ class DyGIE(Model):
         spans = F.relu(spans.float()).long()
 
         # Shape: (batch_size, num_spans, 2 * encoding_dim + feature_size)
-        endpoint_span_embeddings = self._endpoint_span_extractor(contextualized_embeddings, spans)
+        endpoint_span_embeddings = self._endpoint_span_extractor(contextualized_embeddings, spans, text_mask)
 
         if self._attentive_span_extractor is not None:
             # Shape: (batch_size, num_spans, emebedding_size + 2 * encoding_dim + feature_size)
