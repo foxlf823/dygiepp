@@ -74,6 +74,7 @@ function(p) {
   local span_emb_dim =
     if p.span_extractor == "endpoint" then endpoint_span_emb_dim
     else if p.span_extractor == "pooling" then context_layer_output_size + p.feature_size
+    else if p.span_extractor == "conv" then context_layer_output_size + p.feature_size
     else error "invalid span_extractor: " + p.span_extractor,
   // local span_emb_dim = endpoint_span_emb_dim + attended_span_emb_dim,
   local pair_emb_dim = 3 * span_emb_dim,
