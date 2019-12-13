@@ -14,7 +14,7 @@ from dygie.training.ner_metrics import NERMetrics
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-class NERTagger(Model):
+class NERTagger_Has_None(Model):
     """
     Named entity recognition module of DyGIE model.
 
@@ -39,7 +39,7 @@ class NERTagger(Model):
                  feature_size: int,
                  initializer: InitializerApplicator = InitializerApplicator(),
                  regularizer: Optional[RegularizerApplicator] = None) -> None:
-        super(NERTagger, self).__init__(vocab, regularizer)
+        super(NERTagger_Has_None, self).__init__(vocab, regularizer)
 
         # Number of classes determine the output dimension of the final layer
         self._n_labels = vocab.get_vocab_size('ner_labels')
@@ -53,7 +53,7 @@ class NERTagger(Model):
             TimeDistributed(mention_feedforward),
             TimeDistributed(torch.nn.Linear(
                 mention_feedforward.get_output_dim(),
-                self._n_labels - 1)))
+                self._n_labels)))
 
         self._ner_metrics = NERMetrics(self._n_labels, null_label)
 
@@ -68,8 +68,7 @@ class NERTagger(Model):
                 span_embeddings: torch.IntTensor,
                 sentence_lengths: torch.Tensor,
                 ner_labels: torch.IntTensor = None,
-                metadata: List[Dict[str, Any]] = None,
-                output_span: Dict[str, Any] = None) -> Dict[str, torch.Tensor]:
+                metadata: List[Dict[str, Any]] = None) -> Dict[str, torch.Tensor]:
 
         """
         TODO(dwadden) Write documentation.
@@ -81,13 +80,7 @@ class NERTagger(Model):
         # Give large negative scores to masked-out elements.
         mask = span_mask.unsqueeze(-1)
         ner_scores = util.replace_masked_values(ner_scores, mask, -1e20)
-        dummy_dims = [ner_scores.size(0), ner_scores.size(1), 1]
-        dummy_scores = ner_scores.new_zeros(*dummy_dims)
-        if "predicted_span" in output_span and not self.training:
-            dummy_scores.masked_fill_(output_span["predicted_span"].bool().unsqueeze(-1), -1e20)
-            dummy_scores.masked_fill_((1-output_span["predicted_span"]).bool().unsqueeze(-1), 1e20)
-
-        ner_scores = torch.cat((dummy_scores, ner_scores), -1)
+        ner_scores[:, :, 0] *= span_mask
 
         _, predicted_ner = ner_scores.max(2)
 

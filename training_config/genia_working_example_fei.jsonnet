@@ -44,10 +44,11 @@ local params = {
   lexical_dropout: 0.5,
   lstm_dropout: 0.0,
   loss_weights: {          // Loss weights for the modules.
-    ner: 1.0,
+    ner: 0.5,
     relation: 0.0,
     coref: 0.0,
-    events: 0.0
+    events: 0.0,
+    span: 0.5,
   },
   loss_weights_events: {   // Loss weights for trigger and argument ID in events.
     trigger: 0.0,
@@ -91,8 +92,10 @@ local params = {
   // add by feili
   evaluate_on_test: true,
   // endpoint, pooling, conv, attention, rnn
-  span_extractor: "rnn",
-  combination: "x,y"
+  span_extractor: "endpoint",
+  combination: "x,y",
+  // model: dygie, cls_ner
+  model: "cls_ner",
 };
 
 ////////////////////

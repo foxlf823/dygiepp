@@ -13,14 +13,16 @@ function(p) {
     "ner": "+ner_f1",
     "rel": "+rel_f1",
     "coref": "+coref_f1",
-    "events": event_validation_metric
+    "events": event_validation_metric,
   },
 
   local display_metrics = {
-    "ner": ["ner_precision", "ner_recall", "ner_f1"],
+    // feili
+    "ner": if p.loss_weights["span"] > 0 then ["ner_precision", "ner_recall", "ner_f1", "span_precision", "span_recall", "span_f1", "span_accuracy"]
+           else ["ner_precision", "ner_recall", "ner_f1"],
     "rel": ["rel_precision", "rel_recall", "rel_f1", "rel_span_recall"],
     "coref": ["coref_precision", "coref_recall", "coref_f1", "coref_mention_recall"],
-    "events": ["trig_class_f1", "arg_class_f1"]
+    "events": ["trig_class_f1", "arg_class_f1"],
   },
 
   local glove_dim = 300,
@@ -241,29 +243,8 @@ function(p) {
     batch_size : p.batch_size
   },
 
-  ////////////////////////////////////////////////////////////////////////////////
-
-
-  // The model
-
-  random_seed: getattr(p, "random_seed", 13370),
-  numpy_seed: getattr(p, "numpy_seed", 1337),
-  pytorch_seed: getattr(p, "pytorch_seed", 133),
-  dataset_reader: {
-    type: "ie_json",
-    token_indexers: token_indexers,
-    max_span_width: p.max_span_width,
-    context_width: p.context_width,
-    debug: getattr(p, "debug", false),
-  },
-  train_data_path: std.extVar("ie_train_data_path"),
-  validation_data_path: std.extVar("ie_dev_data_path"),
-  test_data_path: std.extVar("ie_test_data_path"),
-  // If provided, use pre-defined vocabulary. Else compute on the fly.
-  [if "vocab_path" in p then "vocabulary"]: {
-    directory_path: p.vocab_path
-  },
-  model: {
+  // feili
+  local model = if p.model == "dygie" then {
     type: "dygie",
     text_field_embedder: text_field_embedder,
     initializer: dygie_initializer,
@@ -345,7 +326,56 @@ function(p) {
     },
     // feili
     span_extractor: span_extractor
+  } else if p.model == "cls_ner" then {
+    type: "cls_ner",
+    text_field_embedder: text_field_embedder,
+    initializer: dygie_initializer,
+    loss_weights: p.loss_weights,
+    lexical_dropout: p.lexical_dropout,
+    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    feature_size: p.feature_size,
+    use_attentive_span_extractor: p.use_attentive_span_extractor,
+    max_span_width: p.max_span_width,
+    display_metrics: display_metrics[p.target],
+    context_layer: context_layer,
+    co_train: co_train,
+    modules: {
+      ner: {
+        mention_feedforward: make_feedforward(span_emb_dim),
+        initializer: module_initializer
+      },
+      span: {
+        mention_feedforward: make_feedforward(span_emb_dim),
+        initializer: module_initializer
+      }
+    },
+    // feili
+    span_extractor: span_extractor
+  } else error "invalid model: " + p.model,
+
+  ////////////////////////////////////////////////////////////////////////////////
+
+
+  // The model
+
+  random_seed: getattr(p, "random_seed", 13370),
+  numpy_seed: getattr(p, "numpy_seed", 1337),
+  pytorch_seed: getattr(p, "pytorch_seed", 133),
+  dataset_reader: {
+    type: "ie_json",
+    token_indexers: token_indexers,
+    max_span_width: p.max_span_width,
+    context_width: p.context_width,
+    debug: getattr(p, "debug", false),
   },
+  train_data_path: std.extVar("ie_train_data_path"),
+  validation_data_path: std.extVar("ie_dev_data_path"),
+  test_data_path: std.extVar("ie_test_data_path"),
+  // If provided, use pre-defined vocabulary. Else compute on the fly.
+  [if "vocab_path" in p then "vocabulary"]: {
+    directory_path: p.vocab_path
+  },
+  model: model,
   iterator: {
     type: if co_train then "ie_multitask" else "ie_batch",
     batch_size: p.batch_size,

@@ -134,12 +134,15 @@ class IEJsonReader(DatasetReader):
         self._max_span_width = max_span_width
         self._token_indexers = token_indexers or {"tokens": SingleIdTokenIndexer()}
         self._debug = debug
-        self._n_debug_docs = 10
+        # self._n_debug_docs = 10
+        # debug feili
+        self._n_debug_docs = 2
 
     @overrides
     def _read(self, file_path: str):
         # if `file_path` is a URL, redirect to the cache
-        file_path = cached_path(file_path)
+        # file_path = cached_path(file_path) debug feili
+        file_path = file_path
 
         with open(file_path, "r") as f:
             lines = f.readlines()
@@ -245,10 +248,13 @@ class IEJsonReader(DatasetReader):
         # Generate fields for text spans, ner labels, coref labels.
         spans = []
         span_ner_labels = []
+        # feili
+        span_labels = []
         span_coref_labels = []
         for start, end in enumerate_spans(sentence, max_span_width=self._max_span_width):
             span_ix = (start, end)
             span_ner_labels.append(ner_dict[span_ix])
+            span_labels.append('' if ner_dict[span_ix] == '' else '1')
             span_coref_labels.append(cluster_dict[span_ix])
             spans.append(SpanField(start, end, text_field))
 
@@ -257,6 +263,8 @@ class IEJsonReader(DatasetReader):
                                              label_namespace="ner_labels")
         coref_label_field = SequenceLabelField(span_coref_labels, span_field,
                                                label_namespace="coref_labels")
+        # feili
+        span_label_field = SequenceLabelField(span_labels, span_field, label_namespace="span_labels")
 
         # Generate labels for relations and arguments. Only store non-null values.
         # For the arguments, by convention the first span specifies the trigger, and the second
@@ -303,20 +311,25 @@ class IEJsonReader(DatasetReader):
                       trigger_labels=trigger_label_field,
                       argument_labels=argument_label_field,
                       relation_labels=relation_label_field,
-                      metadata=metadata_field)
+                      metadata=metadata_field,
+                      span_labels=span_label_field)
 
         return Instance(fields)
 
     @overrides
     def _instances_from_cache_file(self, cache_filename):
-        with open(cache_filename, "rb") as f:
-            for entry in pkl.load(f):
-                yield entry
+        # with open(cache_filename, "rb") as f:
+        #     for entry in pkl.load(f):
+        #         yield entry
+        # debug feili
+        pass
 
     @overrides
     def _instances_to_cache_file(self, cache_filename, instances):
-        with open(cache_filename, "wb") as f:
-            pkl.dump(instances, f)
+        # with open(cache_filename, "wb") as f:
+        #     pkl.dump(instances, f)
+        # debug feili
+        pass
 
 
     @staticmethod
