@@ -48,7 +48,8 @@ local params = {
     relation: 0.0,
     coref: 0.0,
     events: 0.0,
-    span: 0.5,
+    span: 0,
+    seq: 0.5,
   },
   loss_weights_events: {   // Loss weights for trigger and argument ID in events.
     trigger: 0.0,
@@ -94,8 +95,10 @@ local params = {
   // endpoint, pooling, conv, attention, rnn
   span_extractor: "endpoint",
   combination: "x,y",
-  // model: dygie, cls_ner
-  model: "cls_ner",
+  // model: dygie, cls_ner, seq_ner
+  model: "seq_ner",
+  // flat, stacked
+  label_scheme: "stacked",
 };
 
 ////////////////////

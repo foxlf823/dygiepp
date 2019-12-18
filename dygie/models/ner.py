@@ -38,7 +38,8 @@ class NERTagger(Model):
                  mention_feedforward: FeedForward,
                  feature_size: int,
                  initializer: InitializerApplicator = InitializerApplicator(),
-                 regularizer: Optional[RegularizerApplicator] = None) -> None:
+                 regularizer: Optional[RegularizerApplicator] = None,
+                 mode: str='cls_ner') -> None:
         super(NERTagger, self).__init__(vocab, regularizer)
 
         # Number of classes determine the output dimension of the final layer
@@ -59,6 +60,8 @@ class NERTagger(Model):
 
         self._loss = torch.nn.CrossEntropyLoss(reduction="sum")
 
+        self.mode = mode
+
         initializer(self)
 
     @overrides
@@ -69,11 +72,12 @@ class NERTagger(Model):
                 sentence_lengths: torch.Tensor,
                 ner_labels: torch.IntTensor = None,
                 metadata: List[Dict[str, Any]] = None,
-                output_span: Dict[str, Any] = None) -> Dict[str, torch.Tensor]:
+                previous_step_output: Dict[str, Any] = None) -> Dict[str, torch.Tensor]:
 
         """
         TODO(dwadden) Write documentation.
         """
+
 
         # Shape: (Batch size, Number of Spans, Span Embedding Size)
         # span_embeddings
@@ -83,11 +87,30 @@ class NERTagger(Model):
         ner_scores = util.replace_masked_values(ner_scores, mask, -1e20)
         dummy_dims = [ner_scores.size(0), ner_scores.size(1), 1]
         dummy_scores = ner_scores.new_zeros(*dummy_dims)
-        if "predicted_span" in output_span and not self.training:
-            dummy_scores.masked_fill_(output_span["predicted_span"].bool().unsqueeze(-1), -1e20)
-            dummy_scores.masked_fill_((1-output_span["predicted_span"]).bool().unsqueeze(-1), 1e20)
+        if "predicted_span" in previous_step_output and not self.training:
+            dummy_scores.masked_fill_(previous_step_output["predicted_span"].bool().unsqueeze(-1), -1e20)
+            dummy_scores.masked_fill_((1-previous_step_output["predicted_span"]).bool().unsqueeze(-1), 1e20)
 
         ner_scores = torch.cat((dummy_scores, ner_scores), -1)
+
+        if "predicted_seq_span" in previous_step_output and not self.training:
+            for row_idx, all_spans in enumerate(spans):
+                pred_spans = previous_step_output["predicted_seq_span"][row_idx]
+                pred_spans = all_spans.new_tensor(pred_spans)
+                for col_idx, span in enumerate(all_spans):
+                    if span_mask[row_idx][col_idx] == 0:
+                        continue
+                    bFind = False
+                    for pred_span in pred_spans:
+                        if span[0] == pred_span[0] and span[1] == pred_span[1]:
+                            bFind = True
+                            break
+                    if bFind:
+                        # if find, use the ner scores, set dummy to a big negative
+                        ner_scores[row_idx, col_idx, 0] = -1e20
+                    else:
+                        # if not find, use the previous step, set dummy to a big positive
+                        ner_scores[row_idx, col_idx, 0] = 1e20
 
         _, predicted_ner = ner_scores.max(2)
 

@@ -19,6 +19,7 @@ function(p) {
   local display_metrics = {
     // feili
     "ner": if p.loss_weights["span"] > 0 then ["ner_precision", "ner_recall", "ner_f1", "span_precision", "span_recall", "span_f1", "span_accuracy"]
+           else if p.loss_weights["seq"] > 0 then ["ner_precision", "ner_recall", "ner_f1", "seq_precision", "seq_recall", "seq_f1"]
            else ["ner_precision", "ner_recall", "ner_f1"],
     "rel": ["rel_precision", "rel_recall", "rel_f1", "rel_span_recall"],
     "coref": ["coref_precision", "coref_recall", "coref_f1", "coref_mention_recall"],
@@ -342,7 +343,8 @@ function(p) {
     modules: {
       ner: {
         mention_feedforward: make_feedforward(span_emb_dim),
-        initializer: module_initializer
+        initializer: module_initializer,
+        mode: p.model
       },
       span: {
         mention_feedforward: make_feedforward(span_emb_dim),
@@ -351,7 +353,35 @@ function(p) {
     },
     // feili
     span_extractor: span_extractor
-  } else error "invalid model: " + p.model,
+  } else if p.model == "seq_ner" then {
+    type: "seq_ner",
+    text_field_embedder: text_field_embedder,
+    initializer: dygie_initializer,
+    loss_weights: p.loss_weights,
+    lexical_dropout: p.lexical_dropout,
+    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    feature_size: p.feature_size,
+    use_attentive_span_extractor: p.use_attentive_span_extractor,
+    max_span_width: p.max_span_width,
+    display_metrics: display_metrics[p.target],
+    context_layer: context_layer,
+    co_train: co_train,
+    modules: {
+      ner: {
+        mention_feedforward: make_feedforward(span_emb_dim),
+        initializer: module_initializer,
+        mode: p.model
+      },
+      seq: {
+        mention_feedforward: make_feedforward(context_layer_output_size),
+        initializer: module_initializer,
+        label_scheme: p.label_scheme,
+      },
+    },
+    // feili
+    span_extractor: span_extractor
+  }
+  else error "invalid model: " + p.model,
 
   ////////////////////////////////////////////////////////////////////////////////
 
@@ -367,6 +397,8 @@ function(p) {
     max_span_width: p.max_span_width,
     context_width: p.context_width,
     debug: getattr(p, "debug", false),
+    // feili
+    label_scheme: p.label_scheme,
   },
   train_data_path: std.extVar("ie_train_data_path"),
   validation_data_path: std.extVar("ie_dev_data_path"),

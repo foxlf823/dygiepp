@@ -115,7 +115,6 @@ def format_label_fields(ner: List[List[Union[int,str]]],
 
     return ner_dict, relation_dict, cluster_dict, trigger_dict, arg_dict
 
-
 @DatasetReader.register("ie_json")
 class IEJsonReader(DatasetReader):
     """
@@ -127,7 +126,8 @@ class IEJsonReader(DatasetReader):
                  token_indexers: Dict[str, TokenIndexer] = None,
                  context_width: int = 1,
                  debug: bool = False,
-                 lazy: bool = False) -> None:
+                 lazy: bool = False,
+                 label_scheme: str = 'flat') -> None:
         super().__init__(lazy)
         assert (context_width % 2 == 1) and (context_width > 0)
         self.k = int( (context_width - 1) / 2)
@@ -137,6 +137,7 @@ class IEJsonReader(DatasetReader):
         # self._n_debug_docs = 10
         # debug feili
         self._n_debug_docs = 2
+        self._label_scheme = label_scheme
 
     @overrides
     def _read(self, file_path: str):
@@ -222,6 +223,10 @@ class IEJsonReader(DatasetReader):
         text_field = TextField([Token(word) for word in sentence], self._token_indexers)
         text_field_with_context = TextField([Token(word) for word in groups], self._token_indexers)
 
+        # feili, NER labels. One label per token
+        ner_sequence_labels = self._generate_ner_label(sentence, ner_dict)
+        ner_sequence_label_field = SequenceLabelField(ner_sequence_labels, text_field, label_namespace="ner_sequence_labels")
+
         # Put together the metadata.
         metadata = dict(sentence=sentence,
                         ner_dict=ner_dict,
@@ -234,7 +239,8 @@ class IEJsonReader(DatasetReader):
                         groups=groups,
                         start_ix=start_ix,
                         end_ix=end_ix,
-                        sentence_num=sentence_num)
+                        sentence_num=sentence_num,
+                        seq_dict=ner_sequence_labels)
         metadata_field = MetadataField(metadata)
 
         # Trigger labels. One label per token in the input.
@@ -312,7 +318,8 @@ class IEJsonReader(DatasetReader):
                       argument_labels=argument_label_field,
                       relation_labels=relation_label_field,
                       metadata=metadata_field,
-                      span_labels=span_label_field)
+                      span_labels=span_label_field,
+                      ner_sequence_labels=ner_sequence_label_field)
 
         return Instance(fields)
 
@@ -338,3 +345,69 @@ class IEJsonReader(DatasetReader):
             return word[1:]
         else:
             return word
+
+    # feili
+    def _generate_ner_label(self, sentence: List[str],
+                         ner_dict: Dict[Tuple[int, int], str],
+                         ):
+        # if sentence[0] == 'Employing':
+        #     a = 1
+        if self._label_scheme == 'flat':
+            sentence_label = []
+            for token_idx, token in enumerate(sentence):
+                label = 'O'
+                for span, ner_label, in ner_dict.items():
+                    if token_idx == span[0]:
+                        label = 'B'
+                        break
+                    elif token_idx == span[1]:
+                        label = 'E'
+                        break
+                    elif span[0] < token_idx < span[1]:
+                        label = 'I'
+                        break
+                sentence_label.append(label)
+        elif self._label_scheme == 'stacked':
+            sentence_label = []
+            for token_idx, token in enumerate(sentence):
+                label = ''
+                for span, ner_label, in ner_dict.items():
+                    if token_idx == span[0]:
+                        label += 'S' if span[0] == span[1] else 'B'
+                    elif token_idx == span[1]:
+                        label += 'S' if span[0] == span[1] else 'E'
+                    elif span[0] < token_idx < span[1]:
+                        if label == '':
+                            label = 'I'
+                        elif label.find("B") == -1 and label.find("E") == -1 and label.find("S") == -1:
+                            label = 'I'
+                if label == '':
+                    label = 'O'
+                sentence_label.append(label)
+                # if label == 'SE' or label == 'BB' or label=="EE":
+                #     a = 1
+        else:
+            raise RuntimeError("invalid label_scheme {}".format(self._label_scheme))
+
+        return sentence_label
+
+        # for token_idx, token in enumerate(sentence):
+        #     label = 'O'
+        #     for span, ner_label, in ner_dict.items():
+        #         if token_idx == span[0]:
+        #             if label != 'O' and label != 'I':
+        #                 overlapped_label = 'S' if span[0] == span[1] else 'B'
+        #                 logger.info('sentence: {}, token_idx {}, current label "{}", overlapped label "{}"'.format(sentence, token_idx, label, overlapped_label))
+        #             else:
+        #                 label = 'S' if span[0] == span[1] else 'B'
+        #
+        #         elif token_idx == span[1]:
+        #             if label != 'O' and label != 'I':
+        #                 overlapped_label = 'S' if span[0] == span[1] else 'E'
+        #                 logger.info('sentence: {}, token_idx {}, current label "{}", overlapped label "{}"'.format(sentence, token_idx, label, overlapped_label))
+        #             else:
+        #                 label = 'S' if span[0] == span[1] else 'E'
+        #         elif span[0] < token_idx < span[1]:
+        #             label = 'I'
+
+
