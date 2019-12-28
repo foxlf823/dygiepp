@@ -9,7 +9,7 @@ from overrides import overrides
 
 from allennlp.common.file_utils import cached_path
 from allennlp.data.dataset_readers.dataset_reader import DatasetReader
-from allennlp.data.fields import (Field, ListField, TextField, SpanField, MetadataField,
+from allennlp.data.fields import (Field, ListField, TextField, SpanField, MetadataField, ArrayField, LabelField, IndexField,
                                   SequenceLabelField, AdjacencyField)
 from allennlp.data.instance import Instance
 from allennlp.data.tokenizers import Token
@@ -69,9 +69,11 @@ def format_label_fields(ner: List[List[Union[int,str]]],
                         relations: List[List[Union[int,str]]],
                         cluster_tmp: Dict[Tuple[int,int], int],
                         events: List[List[Union[int,str]]],
-                        sentence_start: int) -> Tuple[Dict[Tuple[int,int],str],
+                        sentence_start: int,
+                        tree: Dict[str, Any]) -> Tuple[Dict[Tuple[int,int],str],
                                                       Dict[Tuple[Tuple[int,int],Tuple[int,int]],str],
-                                                      Dict[Tuple[int,int],int]]:
+                                                      Dict[Tuple[int,int],int], Dict[Tuple[int, int],str],
+                                                    Dict[Tuple[int, int],List[Tuple[int, int]]]]:
     """
     Format the label fields, making the following changes:
     1. Span indices should be with respect to sentence, not document.
@@ -113,7 +115,40 @@ def format_label_fields(ner: List[List[Union[int,str]]],
         for the_arg in the_args:
             arg_dict[(the_trigger[0] - ss, (the_arg[0] - ss, the_arg[1] - ss))] = the_arg[2]
 
-    return ner_dict, relation_dict, cluster_dict, trigger_dict, arg_dict
+    # Syntax
+    if 'match' in tree:
+        syntax_dict = MissingDict("",
+            (
+                ((syntax_span[0], syntax_span[1]), syntax)
+                for parent, children, syntax, word, syntax_span in tree['nodes']
+            )
+        )
+    else:
+        syntax_dict = MissingDict("")
+
+    # Children in Syntax tree
+    if 'match' in tree:
+        children_dict = MissingDict([],
+            (
+                ((syntax_span[0], syntax_span[1]), [(tree['nodes'][child][4][0],tree['nodes'][child][4][1]) for child in children])
+                for parent, children, syntax, word, syntax_span in tree['nodes']
+            )
+        )
+    else:
+        children_dict = MissingDict([])
+
+    return ner_dict, relation_dict, cluster_dict, trigger_dict, arg_dict, syntax_dict, children_dict
+
+def span_in_tree(span_ix, tree):
+    if 'match' in tree:
+        # a constituent tree exists
+        for node in tree['nodes']:
+            if span_ix[0] == node[4][0] and span_ix[1] == node[4][1]:
+                return node
+        return None
+    else:
+        return None
+
 
 @DatasetReader.register("ie_json")
 class IEJsonReader(DatasetReader):
@@ -180,10 +215,11 @@ class IEJsonReader(DatasetReader):
 
             cluster_dict_doc = make_cluster_dict(js["clusters"])
             #zipped = zip(js["sentences"], js["ner"], js["relations"], js["events"])
-            zipped = zip(js["sentences"], js["ner"], js["relations"], js["events"], js["sentence_groups"], js["sentence_start_index"], js["sentence_end_index"])
+            zipped = zip(js["sentences"], js["ner"], js["relations"], js["events"], js["sentence_groups"],
+                         js["sentence_start_index"], js["sentence_end_index"], js['trees'])
 
             # Loop over the sentences.
-            for sentence_num, (sentence, ner, relations, events, groups, start_ix, end_ix) in enumerate(zipped):
+            for sentence_num, (sentence, ner, relations, events, groups, start_ix, end_ix, tree) in enumerate(zipped):
 
                 sentence_end = sentence_start + len(sentence) - 1
                 cluster_tmp, cluster_dict_doc = cluster_dict_sentence(
@@ -191,12 +227,12 @@ class IEJsonReader(DatasetReader):
 
                 # TODO(dwadden) too many outputs. Re-write as a dictionary.
                 # Make span indices relative to sentence instead of document.
-                ner_dict, relation_dict, cluster_dict, trigger_dict, argument_dict = \
-                    format_label_fields(ner, relations, cluster_tmp, events, sentence_start)
+                ner_dict, relation_dict, cluster_dict, trigger_dict, argument_dict, syntax_dict, children_dict = \
+                    format_label_fields(ner, relations, cluster_tmp, events, sentence_start, tree)
                 sentence_start += len(sentence)
                 instance = self.text_to_instance(
                     sentence, ner_dict, relation_dict, cluster_dict, trigger_dict, argument_dict,
-                    doc_key, dataset, sentence_num, groups, start_ix, end_ix)
+                    doc_key, dataset, sentence_num, groups, start_ix, end_ix, tree, syntax_dict, children_dict)
                 yield instance
 
 
@@ -213,7 +249,10 @@ class IEJsonReader(DatasetReader):
                          sentence_num: int,
                          groups: List[str],
                          start_ix: int,
-                         end_ix: int):
+                         end_ix: int,
+                         tree: Dict[str, Any],
+                         syntax_dict: Dict[Tuple[int, int], str],
+                         children_dict: Dict[Tuple[int, int],List[Tuple[int, int]]]):
         """
         TODO(dwadden) document me.
         """
@@ -257,14 +296,53 @@ class IEJsonReader(DatasetReader):
         # feili
         span_labels = []
         span_coref_labels = []
+        span_syntax_labels = []
+        span_children_labels = []
+        # span_children_syntax_labels = []
+        raw_spans = []
         for start, end in enumerate_spans(sentence, max_span_width=self._max_span_width):
             span_ix = (start, end)
+            # here we need to consider how to use tree info
+            # for example, use_tree, span is in tree, match is true or false
             span_ner_labels.append(ner_dict[span_ix])
             span_labels.append('' if ner_dict[span_ix] == '' else '1')
             span_coref_labels.append(cluster_dict[span_ix])
             spans.append(SpanField(start, end, text_field))
+            span_syntax_labels.append(syntax_dict[span_ix])
+            raw_spans.append(span_ix)
+
+            # if len(children_dict[span_ix]) == 0:
+            #     children_field = ListField([SpanField(-1, -1, text_field)])
+            #     children_syntax_field = SequenceLabelField([''], children_field,
+            #                                            label_namespace="span_syntax_labels")
+            # else:
+            #     children_field = ListField([SpanField(children_span[0], children_span[1], text_field)
+            #                for children_span in children_dict[span_ix]])
+            #     children_syntax_field = SequenceLabelField([syntax_dict[children_span] for children_span in children_dict[span_ix]],
+            #                                                children_field, label_namespace="span_syntax_labels")
+            # span_children_labels.append(children_field)
+            # span_children_syntax_labels.append(children_syntax_field)
 
         span_field = ListField(spans)
+
+        for span in raw_spans:
+
+            if len(children_dict[span]) == 0:
+                children_field = ListField([IndexField(-1, span_field) ])
+            else:
+                children_field = []
+                for children_span in children_dict[span]:
+                    if children_span in raw_spans:
+                        children_field.append(IndexField(raw_spans.index(children_span), span_field))
+                    else:
+                        children_field.append(IndexField(-1, span_field))
+                children_field = ListField(children_field)
+
+            span_children_labels.append(children_field)
+
+
+
+
         ner_label_field = SequenceLabelField(span_ner_labels, span_field,
                                              label_namespace="ner_labels")
         coref_label_field = SequenceLabelField(span_coref_labels, span_field,
@@ -309,6 +387,11 @@ class IEJsonReader(DatasetReader):
             indices=argument_indices, row_field=text_field, col_field=span_field, labels=arguments,
             label_namespace="argument_labels")
 
+        # Syntax
+        span_syntax_field = SequenceLabelField(span_syntax_labels, span_field, label_namespace="span_syntax_labels")
+        span_children_field = ListField(span_children_labels)
+        # span_children_syntax_field = ListField(span_children_syntax_labels)
+
         # Pull it  all together.
         fields = dict(text=text_field_with_context,
                       spans=span_field,
@@ -319,7 +402,10 @@ class IEJsonReader(DatasetReader):
                       relation_labels=relation_label_field,
                       metadata=metadata_field,
                       span_labels=span_label_field,
-                      ner_sequence_labels=ner_sequence_label_field)
+                      ner_sequence_labels=ner_sequence_label_field,
+                      syntax_labels=span_syntax_field,
+                      span_children=span_children_field)
+                      # span_children_syntax=span_children_syntax_field)
 
         return Instance(fields)
 

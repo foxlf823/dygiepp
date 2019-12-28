@@ -122,7 +122,8 @@ def format_fold(fold, in_dir, out_dir):
 
 def main():
     in_prefix = "./data/genia/raw-data/sutd-article"
-    in_dir = f"{in_prefix}/split-corrected"
+    # in_dir = f"{in_prefix}/split-corrected"
+    in_dir = f"{in_prefix}/split-corrected-checked"
     out_dir = "./data/genia/processed-data/json-ner"
     os.makedirs(out_dir)
     folds = ["train", "dev", "test"]

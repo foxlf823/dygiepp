@@ -87,13 +87,13 @@ class NERTagger(Model):
         ner_scores = util.replace_masked_values(ner_scores, mask, -1e20)
         dummy_dims = [ner_scores.size(0), ner_scores.size(1), 1]
         dummy_scores = ner_scores.new_zeros(*dummy_dims)
-        if "predicted_span" in previous_step_output and not self.training:
+        if previous_step_output is not None and "predicted_span" in previous_step_output and not self.training:
             dummy_scores.masked_fill_(previous_step_output["predicted_span"].bool().unsqueeze(-1), -1e20)
             dummy_scores.masked_fill_((1-previous_step_output["predicted_span"]).bool().unsqueeze(-1), 1e20)
 
         ner_scores = torch.cat((dummy_scores, ner_scores), -1)
 
-        if "predicted_seq_span" in previous_step_output and not self.training:
+        if previous_step_output is not None and "predicted_seq_span" in previous_step_output and not self.training:
             for row_idx, all_spans in enumerate(spans):
                 pred_spans = previous_step_output["predicted_seq_span"][row_idx]
                 pred_spans = all_spans.new_tensor(pred_spans)

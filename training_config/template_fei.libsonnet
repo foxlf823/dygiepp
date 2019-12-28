@@ -71,7 +71,8 @@ function(p) {
   local context_layer_output_size = (if p.finetune_bert
     then token_embedding_dim
     else 2 * p.lstm_hidden_size),
-  local endpoint_span_emb_dim = 2 * context_layer_output_size + p.feature_size,
+  local endpoint_span_emb_dim = if p.use_tree then 2 * context_layer_output_size + 2*p.feature_size
+    else 2 * context_layer_output_size + p.feature_size,
   local attended_span_emb_dim = if p.use_attentive_span_extractor then token_embedding_dim else 0,
   // feili
   local span_emb_dim =
@@ -378,6 +379,42 @@ function(p) {
         label_scheme: p.label_scheme,
       },
     },
+    span_extractor: span_extractor
+  } else if p.model == "tree_ner" then {
+    type: "tree_ner",
+    text_field_embedder: text_field_embedder,
+    initializer: dygie_initializer,
+    loss_weights: p.loss_weights,
+    lexical_dropout: p.lexical_dropout,
+    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    feature_size: p.feature_size,
+    use_attentive_span_extractor: p.use_attentive_span_extractor,
+    max_span_width: p.max_span_width,
+    display_metrics: display_metrics[p.target],
+    context_layer: context_layer,
+    co_train: co_train,
+    use_tree: p.use_tree,
+    modules: {
+      ner: {
+        mention_feedforward: make_feedforward(span_emb_dim),
+        initializer: module_initializer,
+        mode: p.model
+      },
+      coref: {
+        spans_per_word: p.coref_spans_per_word,
+        max_antecedents: p.coref_max_antecedents,
+        mention_feedforward: make_feedforward(span_emb_dim),
+        antecedent_feedforward: make_feedforward(coref_scorer_dim),
+        span_emb_dim: span_emb_dim,
+        coref_prop: p.coref_prop,
+        initializer: module_initializer
+      },
+      tree: {
+        span_emb_dim: span_emb_dim,
+        coref_prop: p.coref_prop,
+        initializer: module_initializer
+      },
+    } ,
     // feili
     span_extractor: span_extractor
   }
@@ -429,7 +466,8 @@ function(p) {
     [if "moving_average_decay" in p then "moving_average"]: {
       type: "exponential",
       decay: p.moving_average_decay
-    }
+    },
+    shuffle: p.shuffle
   },
 
   // add by feili

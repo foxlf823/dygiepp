@@ -71,8 +71,8 @@ local params = {
 
   // Model training
   batch_size: 2,
-  instances_per_epoch: 1000,
-  num_epochs: 250,
+  instances_per_epoch: 2,
+  num_epochs: 1,
   patience: 15,
   optimizer: {
     type: "bert_adam",
@@ -91,10 +91,8 @@ local params = {
     patience: 4
   },
   // add by feili
-  shuffle: true,
+  shuffle: false,
   evaluate_on_test: true,
-  // endpoint, pooling, conv, attention, rnn
-  span_extractor: "endpoint",
   combination: "x,y",
   // model: dygie, cls_ner, seq_ner, tree_ner
   model: "tree_ner",
@@ -102,6 +100,8 @@ local params = {
   label_scheme: "stacked",
   // use tree info or not
   use_tree: true,
+  // endpoint, pooling, conv, attention, rnn
+  span_extractor: "endpoint",
 };
 
 ////////////////////

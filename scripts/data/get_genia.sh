@@ -77,33 +77,37 @@ convert_sutd() {
 
 ####################
 
-mkdir $out_dir
-mkdir $log_dir
+#mkdir $out_dir
+#mkdir $log_dir
 
 echo "Downloading raw GENIA data."
-download_raw > $log_dir/00-download-genia.log
+#download_raw > $log_dir/00-download-genia.log
 
 echo "Downloading preprocessed GENIA data from https://gitlab.com/sutd_nlp/overlapping_mentions."
-download_sutd > $log_dir/01-download-sutd.log
+#download_sutd > $log_dir/01-download-sutd.log
 
 echo "Converting SUTD-formatted GENIA data."
-convert_sutd > $log_dir/02-convert-sutd.log
+#convert_sutd > $log_dir/02-convert-sutd.log
 
 echo "Splitting GENIA docs into folds."
-python ./scripts/data/genia/split_folds.py > $log_dir/03-split-folds.log
+#python ./scripts/data/genia/split_folds.py > $log_dir/03-split-folds.log
 
 echo "Resolving differences between GENIA original version and SUTD version."
-python ./scripts/data/genia/resolve_differences.py > $log_dir/04-resolve-differences.log
+#python ./scripts/data/genia/resolve_differences.py > $log_dir/04-resolve-differences.log
+
+# feili
+#echo "Check format"
+#python ./scripts/data/genia/check_format.py > $log_dir/check_format.log
 
 echo "Converting to JSON form."
 python ./scripts/data/genia/convert_to_json.py > $log_dir/05-convert-to-json.log
 
 echo "Aligning article ID's from NER and coref version."
-python ./scripts/data/genia/align_articles.py > $log_dir/06-align-articles.log
+#python ./scripts/data/genia/align_articles.py > $log_dir/06-align-articles.log
 
 # To include the 10 training documents with off-by-one errors, add the flag
 # --keep-excluded below. For instance,
 # python ./scripts/data/genia/merge_coref.py --keep-excluded.
-echo "Merging coreference annotations into NER data."
-python ./scripts/data/genia/merge_coref.py > $log_dir/07-merge-coref-all.log
-python ./scripts/data/genia/merge_coref.py --ident-only > $log_dir/08-merge-coref-ident-only.log
+#echo "Merging coreference annotations into NER data."
+#python ./scripts/data/genia/merge_coref.py > $log_dir/07-merge-coref-all.log
+#python ./scripts/data/genia/merge_coref.py --ident-only > $log_dir/08-merge-coref-ident-only.log

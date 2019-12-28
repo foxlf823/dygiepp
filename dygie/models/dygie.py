@@ -137,7 +137,10 @@ class DyGIE(Model):
                 relation_labels,
                 trigger_labels,
                 argument_labels,
-                metadata):
+                metadata,
+                span_labels,
+                ner_sequence_labels
+                ):
         """
         TODO(dwadden) change this.
         """

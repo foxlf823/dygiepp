@@ -2,8 +2,9 @@
 # Usage: bash scripts/train/train_genia.sh [gpu-id]
 # gpu-id can be an integer GPU ID, or -1 for CPU.
 
-experiment_name="genia_ner"
-data_root="./data/genia/processed-data/json-ner"
+experiment_name="genia_ner_0012"
+#data_root="./data/genia/processed-data/json-ner"
+data_root="./data/genia/processed-data/json-treebank"
 config_file="./training_config/genia_working_example_fei.jsonnet"
 cuda_device=$1
 
