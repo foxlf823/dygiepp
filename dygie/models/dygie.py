@@ -139,7 +139,9 @@ class DyGIE(Model):
                 argument_labels,
                 metadata,
                 span_labels,
-                ner_sequence_labels
+                ner_sequence_labels,
+                syntax_labels,
+                span_children,
                 ):
         """
         TODO(dwadden) change this.

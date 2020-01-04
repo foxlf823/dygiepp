@@ -177,8 +177,9 @@ class IEJsonReader(DatasetReader):
     @overrides
     def _read(self, file_path: str):
         # if `file_path` is a URL, redirect to the cache
-        # file_path = cached_path(file_path) debug feili
-        file_path = file_path
+        # file_path = cached_path(file_path)
+        # debug feili
+        # file_path = file_path
 
         with open(file_path, "r") as f:
             lines = f.readlines()

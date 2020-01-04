@@ -377,24 +377,33 @@ def get_excluded():
     excluded = pd.read_table(f"{current_path}/exclude.txt", header=None, squeeze=True).values
     return excluded
 
+from collections import Counter
 
 def one_fold(fold, coref_types, out_dir, keep_excluded):
     """Add coref field to json, one fold."""
     print("Running fold {0}.".format(fold))
+    entity_length = Counter()
+    entity_stat = dict(entity=0, entity_common=0)
     excluded = get_excluded()
     with open(path.join(json_dir, "{0}.json".format(fold))) as f_json:
         with open(path.join(out_dir, "{0}.json".format(fold)), "w") as f_out:
             for counter, line in enumerate(f_json):
                 doc = json.loads(line)
+                for sentence, ner in zip(doc['sentences'], doc['ner']):
+                    for e in ner:
+                        entity_stat['entity'] += 1
+                        entity_length[e[1]-e[0]+1] += 1
+                        if e[1] - e[0] + 1 <= 10:
+                            entity_stat['entity_common'] += 1
                 pmid = int(doc["doc_key"].split("_")[0])
                 medline_id = alignment.loc[pmid][0]
-                xml_file = path.join(coref_dir, str(medline_id) + ".xml")
-                sents_flat = shared.flatten(doc["sentences"])
+                # xml_file = path.join(coref_dir, str(medline_id) + ".xml")
+                # sents_flat = shared.flatten(doc["sentences"])
                 xml_tree_file = path.join(tree_dir, str(medline_id) + ".xml")
-                with open(xml_file, "r") as f_xml:
-                    soup = BS(f_xml.read(), "lxml")
-                    corefs = Corefs(soup, sents_flat, coref_types)
-                doc["clusters"] = corefs.cluster_spans
+                # with open(xml_file, "r") as f_xml:
+                #     soup = BS(f_xml.read(), "lxml")
+                #     corefs = Corefs(soup, sents_flat, coref_types)
+                # doc["clusters"] = corefs.cluster_spans
                 with open(xml_tree_file, 'r') as f_xml:
                     soup = BS(f_xml.read(), "lxml")
                     trees = build_tree(soup, doc, True, pmid, medline_id)
@@ -402,7 +411,8 @@ def one_fold(fold, coref_types, out_dir, keep_excluded):
                 # Save unless it's bad and we're excluding bad documents.
                 if keep_excluded or doc["doc_key"] not in excluded:
                     f_out.write(json.dumps(doc) + "\n")
-
+    print(entity_length)
+    print(entity_stat)
 
 def get_clusters(coref_types, out_dir, keep_excluded):
     """Add coref to json, filtering to only keep coref roots and `coref_types`."""

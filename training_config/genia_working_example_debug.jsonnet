@@ -16,7 +16,7 @@ local params = {
   target: "ner",
 
   // If debugging, don't load expensive embedding files.
-  debug: false,
+  debug: true,
 
   // Specifies the token-level features that will be created.
   use_glove: false,
@@ -39,7 +39,7 @@ local params = {
   feedforward_layers: 2,
   char_n_filters: 50,
   feedforward_dim: 150,
-  max_span_width: 8,
+  max_span_width: 10,
   feedforward_dropout: 0.4,
   lexical_dropout: 0.5,
   lstm_dropout: 0.0,
@@ -93,6 +93,8 @@ local params = {
   // add by feili
   shuffle: false,
   evaluate_on_test: true,
+  // endpoint, pooling, conv, attention, rnn
+  span_extractor: "endpoint",
   combination: "x,y",
   // model: dygie, cls_ner, seq_ner, tree_ner
   model: "tree_ner",
@@ -100,8 +102,6 @@ local params = {
   label_scheme: "stacked",
   // use tree info or not
   use_tree: true,
-  // endpoint, pooling, conv, attention, rnn
-  span_extractor: "endpoint",
 };
 
 ////////////////////

@@ -39,7 +39,7 @@ local params = {
   feedforward_layers: 2,
   char_n_filters: 50,
   feedforward_dim: 150,
-  max_span_width: 8,
+  max_span_width: 10,
   feedforward_dropout: 0.4,
   lexical_dropout: 0.5,
   lstm_dropout: 0.0,

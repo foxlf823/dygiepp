@@ -1,6 +1,6 @@
 // Import template file.
 
-local template = import "template_dw.libsonnet";
+local template = import "template_fei.libsonnet";
 
 ////////////////////
 
@@ -16,7 +16,7 @@ local params = {
   target: "ner",
 
   // If debugging, don't load expensive embedding files.
-  debug: true,
+  debug: false,
 
   // Specifies the token-level features that will be created.
   use_glove: false,
@@ -27,7 +27,7 @@ local params = {
   use_bert_large: false,
   finetune_bert: true,
   rel_prop: 0,
-  coref_prop: 1,
+  coref_prop: 0,
   context_width: 1,
   rel_prop_dropout_A: 0.0,
   rel_prop_dropout_f: 0.0,
@@ -39,19 +39,21 @@ local params = {
   feedforward_layers: 2,
   char_n_filters: 50,
   feedforward_dim: 150,
-  max_span_width: 8,
+  max_span_width: 15,
   feedforward_dropout: 0.4,
   lexical_dropout: 0.5,
   lstm_dropout: 0.0,
   loss_weights: {          // Loss weights for the modules.
     ner: 1.0,
     relation: 0.0,
-    coref: 0.2,
-    events: 0.0
+    coref: 0.0,
+    events: 0.0,
+    span: 0,
+    seq: 0,
   },
   loss_weights_events: {   // Loss weights for trigger and argument ID in events.
-    trigger: 1.0,
-    arguments: 1.0,
+    trigger: 0.0,
+    arguments: 0.0,
   },
 
   // Coref settings.
@@ -87,7 +89,19 @@ local params = {
     factor: 0.5,
     mode: "max",
     patience: 4
-  }
+  },
+  // add by feili
+  shuffle: true,
+  evaluate_on_test: true,
+  // endpoint, pooling, conv, attention, rnn
+  span_extractor: "endpoint",
+  combination: "x,y",
+  // model: dygie, cls_ner, seq_ner, tree_ner
+  model: "tree_ner",
+  // seq_ner: flat, stacked
+  label_scheme: "stacked",
+  // use tree info or not
+  use_tree: true,
 };
 
 ////////////////////
