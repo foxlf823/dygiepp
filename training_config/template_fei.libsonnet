@@ -26,7 +26,7 @@ function(p) {
     "events": ["trig_class_f1", "arg_class_f1"],
   },
 
-  local glove_dim = 300,
+  local glove_dim = if p.debug then 50 else 300,
   local elmo_dim = 1024,
   local bert_base_dim = 768,
   local bert_large_dim = 1024,
@@ -148,7 +148,8 @@ function(p) {
     [if use_bert then "bert"]: {
       type: "bert-pretrained",
       // pretrained_model: (if p.use_bert_base then "bert-base-cased" else "bert-large-cased"),
-      pretrained_model: (if p.use_bert_base then "./scibert_scivocab_cased/vocab.txt" else "bert-large-cased"),
+      // pretrained_model: (if p.use_bert_base then "./scibert_scivocab_cased/vocab.txt" else "bert-large-cased"),
+      pretrained_model: "./"+p.bert_name+"/vocab.txt",
       do_lowercase: false,
       use_starting_offsets: true
     }
@@ -158,13 +159,17 @@ function(p) {
     [if use_bert then "allow_unmatched_keys"]: true,
     [if use_bert then "embedder_to_indexer_map"]: {
       bert: ["bert", "bert-offsets"],
-      token_characters: ["token_characters"]
+      // used when glove or character enabled. since bert must be used, this works well but trick
+      tokens: ["tokens"],
+      token_characters: ["token_characters"],
+      elmo: ["elmo"]
     },
     token_embedders: {
       [if p.use_glove then "tokens"]: {
         type: "embedding",
-        pretrained_file: if p.debug then null else "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.840B.300d.txt.gz",
-        embedding_dim: 300,
+        // pretrained_file: if p.debug then null else "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.840B.300d.txt.gz",
+        pretrained_file: if p.debug then "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.6B.50d.txt.gz" else "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.840B.300d.txt.gz",
+        embedding_dim: if p.debug then 50 else 300,
         trainable: false
       },
       [if p.use_char then "token_characters"]: {
@@ -185,12 +190,14 @@ function(p) {
         options_file: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
         weight_file: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
         do_layer_norm: false,
-        dropout: 0.5
+        // dont't do dropout, since we have a lexical_dropout
+        dropout: 0.0
       },
       [if use_bert then "bert"]: {
         type: "bert-pretrained",
         // pretrained_model: (if p.use_bert_base then "bert-base-cased" else "bert-large-cased"),
-        pretrained_model: (if p.use_bert_base then "./scibert_scivocab_cased/weights.tar.gz" else "bert-large-cased"),
+        // pretrained_model: (if p.use_bert_base then "./scibert_scivocab_cased/weights.tar.gz" else "bert-large-cased"),
+        pretrained_model: "./"+p.bert_name+"/weights.tar.gz",
         requires_grad: p.finetune_bert
       }
     }

@@ -44,6 +44,7 @@ def do_statistics(instances):
     entity_1seg = 0
     entity_2seg = 0
     entity_3seg = 0
+    stats = dict(span=0, span_common=0)
     for instance in instances:
         for entity in instance['entities']:
             if len(entity['span']) == 1:
@@ -53,10 +54,19 @@ def do_statistics(instances):
             else:
                 entity_3seg += 1
 
+            for span in entity['span']:
+                start_end = span.split(',')
+                start = int(start_end[0])
+                end = int(start_end[1])
+                stats['span'] += 1
+                if end-start+1 <= 6:
+                    stats['span_common'] += 1
+
     print("sentence number: {}".format(len(instances)))
     print("1 segment entity: {}".format(entity_1seg))
     print("2 segment entity: {}".format(entity_2seg))
     print("3 segment entity: {}".format(entity_3seg))
+    print(stats)
 
 if __name__ == "__main__":
     filtered_instances = read_file(train_file, instanceFilter)

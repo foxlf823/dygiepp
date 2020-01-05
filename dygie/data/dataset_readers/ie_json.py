@@ -210,7 +210,7 @@ class IEJsonReader(DatasetReader):
                         import ipdb;
             if "clusters" not in js:
                 js["clusters"] = []
-            for field in ["ner", "relations", "events"]:
+            for field in ["ner", "relations", "events", 'trees']:
                 if field not in js:
                     js[field] = [[] for _ in range(n_sentences)]
 

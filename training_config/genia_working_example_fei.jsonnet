@@ -102,6 +102,8 @@ local params = {
   label_scheme: "stacked",
   // use tree info or not
   use_tree: true,
+  // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12
+  bert_name: "scibert_scivocab_cased",
 };
 
 ////////////////////
