@@ -20,9 +20,9 @@ local params = {
 
   // Specifies the token-level features that will be created.
   use_glove: true,
-  tune_glove: true,
+  tune_glove: false,
   use_char: true,
-  use_elmo: true,
+  use_elmo: false,
   //elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
   //elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
   elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_options.json",
@@ -43,7 +43,7 @@ local params = {
   feature_size: 20,
   feedforward_layers: 2,
   char_n_filters: 50,
-  feedforward_dim: 150,
+  feedforward_dim: 600,
   max_span_width: 15,
   feedforward_dropout: 0.4,
   lexical_dropout: 0.5,

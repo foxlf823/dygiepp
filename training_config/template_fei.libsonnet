@@ -11,7 +11,7 @@ function(p) {
 
   local validation_metrics = {
     "ner": "+ner_f1",
-    "rel": "+rel_f1",
+    "rel": "+real_ner_f1",
     "coref": "+coref_f1",
     "events": event_validation_metric,
   },
@@ -21,7 +21,7 @@ function(p) {
     "ner": if p.loss_weights["span"] > 0 then ["ner_precision", "ner_recall", "ner_f1", "span_precision", "span_recall", "span_f1", "span_accuracy"]
            else if p.loss_weights["seq"] > 0 then ["ner_precision", "ner_recall", "ner_f1", "seq_precision", "seq_recall", "seq_f1"]
            else ["ner_precision", "ner_recall", "ner_f1"],
-    "rel": ["rel_precision", "rel_recall", "rel_f1", "rel_span_recall"],
+    "rel": ["ner_precision", "ner_recall", "ner_f1", "rel_precision", "rel_recall", "rel_f1", "real_ner_precision", "real_ner_recall", "real_ner_f1"],
     "coref": ["coref_precision", "coref_recall", "coref_f1", "coref_mention_recall"],
     "events": ["trig_class_f1", "arg_class_f1"],
   },
@@ -421,6 +421,44 @@ function(p) {
         initializer: module_initializer
       },
     } ,
+    // feili
+    span_extractor: span_extractor
+  } else if p.model == "discontinuous_ner" then {
+    type: "discontinuous_ner",
+    text_field_embedder: text_field_embedder,
+    initializer: dygie_initializer,
+    loss_weights: p.loss_weights,
+    lexical_dropout: p.lexical_dropout,
+    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    feature_size: p.feature_size,
+    use_attentive_span_extractor: p.use_attentive_span_extractor,
+    max_span_width: p.max_span_width,
+    display_metrics: display_metrics[p.target],
+    context_layer: context_layer,
+    co_train: co_train,
+    use_tree: p.use_tree,
+    modules: {
+      ner: {
+        mention_feedforward: make_feedforward(span_emb_dim),
+        initializer: module_initializer
+      },
+      relation: {
+        spans_per_word: p.relation_spans_per_word,
+        positive_label_weight: p.relation_positive_label_weight,
+        mention_feedforward: make_feedforward(span_emb_dim),
+        relation_feedforward: make_feedforward(relation_scorer_dim),
+        rel_prop_dropout_A: p.rel_prop_dropout_A,
+        rel_prop_dropout_f: p.rel_prop_dropout_f,
+        rel_prop: p.rel_prop,
+        span_emb_dim: span_emb_dim,
+        initializer: module_initializer
+      },
+      tree: {
+        span_emb_dim: span_emb_dim,
+        coref_prop: p.coref_prop,
+        initializer: module_initializer
+      },
+    },
     // feili
     span_extractor: span_extractor
   }

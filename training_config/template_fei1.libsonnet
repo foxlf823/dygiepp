@@ -27,7 +27,7 @@ function(p) {
   },
 
   local glove_dim = if p.debug then 50 else 300,
-  local elmo_dim = 1024,
+  local elmo_dim = if p.debug then 256 else 1024,
   local bert_base_dim = 768,
   local bert_large_dim = 1024,
 
@@ -169,7 +169,7 @@ function(p) {
         // pretrained_file: if p.debug then null else "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.840B.300d.txt.gz",
         pretrained_file: if p.debug then "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.6B.50d.txt.gz" else "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.840B.300d.txt.gz",
         embedding_dim: if p.debug then 50 else 300,
-        trainable: false
+        trainable: p.tune_glove
       },
       [if p.use_char then "token_characters"]: {
         type: "character_encoding",
@@ -186,8 +186,8 @@ function(p) {
       },
       [if p.use_elmo then "elmo"]: {
         type: "elmo_token_embedder",
-        options_file: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
-        weight_file: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
+        options_file: if p.debug then "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x1024_128_2048cnn_1xhighway/elmo_2x1024_128_2048cnn_1xhighway_options.json" else p.elmo_option,
+        weight_file: if p.debug then "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x1024_128_2048cnn_1xhighway/elmo_2x1024_128_2048cnn_1xhighway_weights.hdf5" else p.elmo_weight,
         do_layer_norm: false,
         // dont't do dropout, since we have a lexical_dropout
         dropout: 0.0

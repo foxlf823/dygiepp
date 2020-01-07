@@ -1,6 +1,6 @@
 // Import template file.
 
-local template = import "template_fei1.libsonnet";
+local template = import "template_fei.libsonnet";
 
 ////////////////////
 
@@ -19,9 +19,14 @@ local params = {
   debug: false,
 
   // Specifies the token-level features that will be created.
-  use_glove: false,
+  use_glove: true,
+  tune_glove: false,
   use_char: false,
   use_elmo: false,
+  //elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
+  //elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
+  elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_options.json",
+  elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_weights.hdf5",
   use_attentive_span_extractor: false,
   use_bert_base: true,
   use_bert_large: false,
@@ -95,6 +100,10 @@ local params = {
   combination: "x,y",
   // model: dygie, cls_ner, seq_ner, tree_ner
   model: "discontinuous_ner",
+  // seq_ner: flat, stacked
+  label_scheme: "stacked",
+  // use tree info or not
+  use_tree: false,
   // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12, clinicalbert_biobert_disch_100000
   bert_name: "clinicalbert_biobert_disch_100000",
 };

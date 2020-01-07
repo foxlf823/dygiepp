@@ -12,7 +12,8 @@ from allennlp.modules import FeedForward
 from allennlp.nn import util, InitializerApplicator, RegularizerApplicator
 from allennlp.modules import TimeDistributed
 
-from dygie.training.relation_metrics import RelationMetrics, CandidateRecall
+# from dygie.training.relation_metrics import RelationMetrics, CandidateRecall
+from dygie.training.relation_metrics1 import RelationMetrics1
 from dygie.models.entity_beam_pruner import Pruner
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -58,8 +59,8 @@ class RelationExtractor(Model):
         self._spans_per_word = spans_per_word
 
         # TODO(dwadden) Add code to compute relation F1.
-        self._candidate_recall = CandidateRecall()
-        self._relation_metrics = RelationMetrics()
+        # self._candidate_recall = CandidateRecall()
+        self._relation_metrics = RelationMetrics1()
 
         class_weights = torch.cat([torch.tensor([1.0]), positive_label_weight * torch.ones(self._n_labels)])
         self._loss = torch.nn.CrossEntropyLoss(reduction="sum", ignore_index=-1, weight=class_weights)
@@ -172,7 +173,7 @@ class RelationExtractor(Model):
         output_dict["relation_scores"] = relation_scores
         output_dict["top_span_embeddings"] = top_span_embeddings
         return output_dict
-    def predict_labels(self, relation_labels, output_dict, metadata):
+    def predict_labels(self, relation_labels, output_dict, metadata, output_ner):
         relation_scores = output_dict["relation_scores"]
 
         # Subtract 1 so that the "null" relation corresponds to -1.
@@ -192,8 +193,8 @@ class RelationExtractor(Model):
             # Compute F1.
             predictions = self.decode(output_dict)["decoded_relations_dict"]
             assert len(predictions) == len(metadata)  # Make sure length of predictions is right.
-            self._candidate_recall(predictions, metadata)
-            self._relation_metrics(predictions, metadata)
+            # self._candidate_recall(predictions, metadata)
+            self._relation_metrics(predictions, metadata, output_ner['decoded_ner_dict'])
 
             output_dict["loss"] = cross_entropy
         return output_dict
@@ -225,12 +226,16 @@ class RelationExtractor(Model):
 
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
-        precision, recall, f1 = self._relation_metrics.get_metric(reset)
-        candidate_recall = self._candidate_recall.get_metric(reset)
+        precision, recall, f1, real_ner_precision, real_ner_recall, real_ner_f1 = self._relation_metrics.get_metric(reset)
+        # candidate_recall = self._candidate_recall.get_metric(reset)
         return {"rel_precision": precision,
                 "rel_recall": recall,
                 "rel_f1": f1,
-                "rel_span_recall": candidate_recall}
+                "real_ner_precision": real_ner_precision,
+                "real_ner_recall": real_ner_recall,
+                "real_ner_f1": real_ner_f1,
+                }
+                # "rel_span_recall": candidate_recall}
 
     def _decode_sentence(self, top_spans, predicted_relations, num_spans_to_keep):
         # TODO(dwadden) speed this up?

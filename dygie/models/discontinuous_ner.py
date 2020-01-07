@@ -16,8 +16,10 @@ from allennlp.nn import util, InitializerApplicator, RegularizerApplicator
 
 # Import submodules.
 from dygie.models.coref import CorefResolver
-from dygie.models.ner1 import NERTagger1
-from dygie.models.relation1 import RelationExtractor1
+from dygie.models.ner import NERTagger
+from dygie.models.relation import RelationExtractor
+from dygie.models.tree import Tree
+from allennlp.modules.token_embedders.embedding import Embedding
 from dygie.models.events import EventExtractor
 from dygie.training.joint_metrics import JointMetrics
 
@@ -59,6 +61,7 @@ class DisNER(Model):
                  feature_size: int,
                  max_span_width: int,
                  loss_weights: Dict[str, int],
+                 use_tree: bool,
                  lexical_dropout: float = 0.2,
                  lstm_dropout: float = 0.4,
                  use_attentive_span_extractor: bool = False,
@@ -78,22 +81,15 @@ class DisNER(Model):
         # Need to add this line so things don't break. TODO(dwadden) sort out what's happening.
         modules = Params(modules)
 
-        self._ner = NERTagger1.from_params(vocab=vocab,
+        self._ner = NERTagger.from_params(vocab=vocab,
                                           feature_size=feature_size,
                                           params=modules.pop("ner"))
-        self._relation = RelationExtractor1.from_params(vocab=vocab,
+        self._relation = RelationExtractor.from_params(vocab=vocab,
                                                        feature_size=feature_size,
                                                        params=modules.pop("relation"))
 
         # Make endpoint span extractor.
         self._endpoint_span_extractor = span_extractor
-
-
-        if use_attentive_span_extractor:
-            self._attentive_span_extractor = SelfAttentiveSpanExtractor(
-                input_dim=text_field_embedder.get_output_dim())
-        else:
-            self._attentive_span_extractor = None
 
         self._max_span_width = max_span_width
 
@@ -114,6 +110,13 @@ class DisNER(Model):
         else:
             self._lstm_dropout = lambda x: x
 
+        self.use_tree = use_tree
+        if self.use_tree:
+            self._syntax_embedding = Embedding(vocab.get_vocab_size('span_syntax_labels'), feature_size)
+            self._tree = Tree.from_params(vocab=vocab,
+                                              feature_size=feature_size,
+                                              params=modules.pop("tree"))
+
         initializer(self)
 
     @overrides
@@ -126,90 +129,44 @@ class DisNER(Model):
                 trigger_labels,
                 argument_labels,
                 metadata,
+                span_labels,
+                ner_sequence_labels,
+                syntax_labels,
+                span_children,
+                # span_children_syntax
                 ):
         """
         TODO(dwadden) change this.
         """
-        # For co-training on Ontonotes, need to change the loss weights depending on the data coming
-        # in. This is a hack but it will do for now.
-        if self._co_train:
-            if self.training:
-                dataset = [entry["dataset"] for entry in metadata]
-                assert len(set(dataset)) == 1
-                dataset = dataset[0]
-                assert dataset in ["ace", "ontonotes"]
-                if dataset == "ontonotes":
-                    self._loss_weights = dict(coref=1, ner=0, relation=0, events=0)
-                else:
-                    self._loss_weights = self._permanent_loss_weights
-            # This assumes that there won't be any co-training data in the dev and test sets, and that
-            # coref propagation will still happen even when the coref weight is set to 0.
-            else:
-                self._loss_weights = self._permanent_loss_weights
 
         # In AllenNLP, AdjacencyFields are passed in as floats. This fixes it.
         relation_labels = relation_labels.long()
-        argument_labels = argument_labels.long()
 
         # debug feili, check relation_labels
         # for dim1 in relation_labels:
         #     for dim2 in dim1:
         #         pass
 
-        # If we're doing Bert, get the sentence class token as part of the text embedding. This will
-        # break if we use Bert together with other embeddings, but that won't happen much.
-        if "bert-offsets" in text:
-            offsets = text["bert-offsets"]
-            sent_ix = torch.zeros(offsets.size(0), device=offsets.device, dtype=torch.long).unsqueeze(1)
-            padded_offsets = torch.cat([sent_ix, offsets], dim=1)
-            text["bert-offsets"] = padded_offsets
-            padded_embeddings = self._text_field_embedder(text)
-            cls_embeddings = padded_embeddings[:, 0, :]
-            text_embeddings = padded_embeddings[:, 1:, :]
-        else:
-            text_embeddings = self._text_field_embedder(text)
-            cls_embeddings = torch.zeros([text_embeddings.size(0), text_embeddings.size(2)],
-                                         device=text_embeddings.device)
+
+        text_embeddings = self._text_field_embedder(text)
 
         text_embeddings = self._lexical_dropout(text_embeddings)
 
         # Shape: (batch_size, max_sentence_length)
         text_mask = util.get_text_field_mask(text).float()
-        sentence_group_lengths = text_mask.sum(dim=1).long()
 
         sentence_lengths = 0*text_mask.sum(dim=1).long()
         for i in range(len(metadata)):
             sentence_lengths[i] = metadata[i]["end_ix"] - metadata[i]["start_ix"]
-            for k in range(sentence_lengths[i], sentence_group_lengths[i]):
-                text_mask[i][k] = 0
-
-        max_sentence_length = sentence_lengths.max().item()
-
-        # TODO(Ulme) Speed this up by tensorizing
-        new_text_embeddings = torch.zeros([text_embeddings.shape[0], max_sentence_length, text_embeddings.shape[2]], device=text_embeddings.device)
-        for i in range(len(new_text_embeddings)):
-            new_text_embeddings[i][0:metadata[i]["end_ix"] - metadata[i]["start_ix"]] = text_embeddings[i][metadata[i]["start_ix"]:metadata[i]["end_ix"]]
-
-        #max_sent_len = max(sentence_lengths)
-        #the_list = [list(k+metadata[i]["start_ix"] if k < max_sent_len else 0 for k in range(text_embeddings.shape[1])) for i in range(len(metadata))]
-        #import ipdb; ipdb.set_trace()
-        #text_embeddings = torch.gather(text_embeddings, 1, torch.tensor(the_list, device=text_embeddings.device).unsqueeze(2).repeat(1, 1, text_embeddings.shape[2]))
-        text_embeddings = new_text_embeddings
-
-        # Only keep the text embeddings that correspond to actual tokens.
-        # text_embeddings = text_embeddings[:, :max_sentence_length, :].contiguous()
-        text_mask = text_mask[:, :max_sentence_length].contiguous()
 
         # Shape: (batch_size, max_sentence_length, encoding_dim)
         contextualized_embeddings = self._lstm_dropout(self._context_layer(text_embeddings, text_mask))
         assert spans.max() < contextualized_embeddings.shape[1]
 
-        if self._attentive_span_extractor is not None:
-            # Shape: (batch_size, num_spans, emebedding_size)
-            attended_span_embeddings = self._attentive_span_extractor(text_embeddings, spans)
-
         # Shape: (batch_size, num_spans)
         span_mask = (spans[:, :, 0] >= 0).float()
+        if self.use_tree:
+            span_children_mask = (span_children[:, :, :, 0] >= 0).float()
         # SpanFields return -1 when they are used as padding. As we do
         # some comparisons based on span widths when we attend over the
         # span representations that we generate from these indices, we
@@ -219,18 +176,16 @@ class DisNER(Model):
         # consider a masked span.
         # Shape: (batch_size, num_spans, 2)
         spans = F.relu(spans.float()).long()
+        if self.use_tree:
+            span_children = F.relu(span_children.float()).long()
 
         # Shape: (batch_size, num_spans, 2 * encoding_dim + feature_size)
-        endpoint_span_embeddings = self._endpoint_span_extractor(contextualized_embeddings, spans, text_mask)
+        span_embeddings = self._endpoint_span_extractor(contextualized_embeddings, spans, text_mask)
 
-        if self._attentive_span_extractor is not None:
-            # Shape: (batch_size, num_spans, emebedding_size + 2 * encoding_dim + feature_size)
-            span_embeddings = torch.cat([endpoint_span_embeddings, attended_span_embeddings], -1)
-        else:
-            span_embeddings = endpoint_span_embeddings
-
-        # TODO(Ulme) try normalizing span embeddeings
-        #span_embeddings = span_embeddings.abs().sum(dim=-1).unsqueeze(-1)
+        if self.use_tree:
+            syntax_embeddings = self._syntax_embedding(syntax_labels)
+            span_embeddings = torch.cat([span_embeddings, syntax_embeddings], -1)
+            span_embeddings = self._tree(span_embeddings, span_children, span_children_mask)
 
         # Make calls out to the modules to get results.
         output_ner = {'loss': 0}
