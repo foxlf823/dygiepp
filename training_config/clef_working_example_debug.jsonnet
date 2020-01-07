@@ -1,6 +1,6 @@
 // Import template file.
 
-local template = import "template_dw.libsonnet";
+local template = import "template_fei1.libsonnet";
 
 ////////////////////
 
@@ -39,7 +39,7 @@ local params = {
   feedforward_layers: 2,
   char_n_filters: 50,
   feedforward_dim: 150,
-  max_span_width: 8,
+  max_span_width: 6,
   feedforward_dropout: 0.4,
   lexical_dropout: 0.5,
   lstm_dropout: 0.0,
@@ -47,7 +47,7 @@ local params = {
     ner: 1.0,
     relation: 1.0,
     coref: 0.0,
-    events: 0.0
+    events: 0.0,
   },
   loss_weights_events: {   // Loss weights for trigger and argument ID in events.
     trigger: 1.0,
@@ -69,8 +69,7 @@ local params = {
 
   // Model training
   batch_size: 2,
-  instances_per_epoch: 1000,
-  num_epochs: 250,
+  num_epochs: 1,
   patience: 15,
   optimizer: {
     type: "bert_adam",
@@ -87,7 +86,17 @@ local params = {
     factor: 0.5,
     mode: "max",
     patience: 4
-  }
+  },
+  // add by feili
+  shuffle: false,
+  evaluate_on_test: true,
+  // endpoint, pooling, conv, attention, rnn
+  span_extractor: "endpoint",
+  combination: "x,y",
+  // model: dygie, cls_ner, seq_ner, tree_ner
+  model: "discontinuous_ner",
+  // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12
+  bert_name: "scibert_scivocab_cased",
 };
 
 ////////////////////

@@ -11,7 +11,7 @@ function(p) {
 
   local validation_metrics = {
     "ner": "+ner_f1",
-    "rel": "+rel_f1",
+    "rel": "+real_ner_f1",
     "coref": "+coref_f1",
     "events": event_validation_metric,
   },
@@ -21,13 +21,13 @@ function(p) {
     "ner": if p.loss_weights["span"] > 0 then ["ner_precision", "ner_recall", "ner_f1", "span_precision", "span_recall", "span_f1", "span_accuracy"]
            else if p.loss_weights["seq"] > 0 then ["ner_precision", "ner_recall", "ner_f1", "seq_precision", "seq_recall", "seq_f1"]
            else ["ner_precision", "ner_recall", "ner_f1"],
-    "rel": ["rel_precision", "rel_recall", "rel_f1", "rel_span_recall"],
+    "rel": ["ner_precision", "ner_recall", "ner_f1", "rel_precision", "rel_recall", "rel_f1", "real_ner_precision", "real_ner_recall", "real_ner_f1"],
     "coref": ["coref_precision", "coref_recall", "coref_f1", "coref_mention_recall"],
     "events": ["trig_class_f1", "arg_class_f1"],
   },
 
   local glove_dim = if p.debug then 50 else 300,
-  local elmo_dim = if p.debug then 256 else 1024,
+  local elmo_dim = 1024,
   local bert_base_dim = 768,
   local bert_large_dim = 1024,
 
@@ -71,8 +71,7 @@ function(p) {
   local context_layer_output_size = (if p.finetune_bert
     then token_embedding_dim
     else 2 * p.lstm_hidden_size),
-  local endpoint_span_emb_dim = if p.use_tree then 2 * context_layer_output_size + 2*p.feature_size
-    else 2 * context_layer_output_size + p.feature_size,
+  local endpoint_span_emb_dim = 2 * context_layer_output_size + p.feature_size,
   local attended_span_emb_dim = if p.use_attentive_span_extractor then token_embedding_dim else 0,
   // feili
   local span_emb_dim =
@@ -170,7 +169,7 @@ function(p) {
         // pretrained_file: if p.debug then null else "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.840B.300d.txt.gz",
         pretrained_file: if p.debug then "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.6B.50d.txt.gz" else "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.840B.300d.txt.gz",
         embedding_dim: if p.debug then 50 else 300,
-        trainable: p.tune_glove
+        trainable: false
       },
       [if p.use_char then "token_characters"]: {
         type: "character_encoding",
@@ -187,8 +186,8 @@ function(p) {
       },
       [if p.use_elmo then "elmo"]: {
         type: "elmo_token_embedder",
-        options_file: if p.debug then "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x1024_128_2048cnn_1xhighway/elmo_2x1024_128_2048cnn_1xhighway_options.json" else p.elmo_option,
-        weight_file: if p.debug then "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x1024_128_2048cnn_1xhighway/elmo_2x1024_128_2048cnn_1xhighway_weights.hdf5" else p.elmo_weight,
+        options_file: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
+        weight_file: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
         do_layer_norm: false,
         // dont't do dropout, since we have a lexical_dropout
         dropout: 0.0
@@ -335,8 +334,8 @@ function(p) {
     },
     // feili
     span_extractor: span_extractor
-  } else if p.model == "cls_ner" then {
-    type: "cls_ner",
+  } else if p.model == "discontinuous_ner" then {
+    type: "discontinuous_ner",
     text_field_embedder: text_field_embedder,
     initializer: dygie_initializer,
     loss_weights: p.loss_weights,
@@ -350,77 +349,21 @@ function(p) {
     co_train: co_train,
     modules: {
       ner: {
-        mention_feedforward: make_feedforward(span_emb_dim),
-        initializer: module_initializer,
-        mode: p.model
-      },
-      span: {
         mention_feedforward: make_feedforward(span_emb_dim),
         initializer: module_initializer
-      }
-    },
-    // feili
-    span_extractor: span_extractor
-  } else if p.model == "seq_ner" then {
-    type: "seq_ner",
-    text_field_embedder: text_field_embedder,
-    initializer: dygie_initializer,
-    loss_weights: p.loss_weights,
-    lexical_dropout: p.lexical_dropout,
-    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
-    feature_size: p.feature_size,
-    use_attentive_span_extractor: p.use_attentive_span_extractor,
-    max_span_width: p.max_span_width,
-    display_metrics: display_metrics[p.target],
-    context_layer: context_layer,
-    co_train: co_train,
-    modules: {
-      ner: {
-        mention_feedforward: make_feedforward(span_emb_dim),
-        initializer: module_initializer,
-        mode: p.model
       },
-      seq: {
-        mention_feedforward: make_feedforward(context_layer_output_size),
-        initializer: module_initializer,
-        label_scheme: p.label_scheme,
+      relation: {
+        spans_per_word: p.relation_spans_per_word,
+        positive_label_weight: p.relation_positive_label_weight,
+        mention_feedforward: make_feedforward(span_emb_dim),
+        relation_feedforward: make_feedforward(relation_scorer_dim),
+        rel_prop_dropout_A: p.rel_prop_dropout_A,
+        rel_prop_dropout_f: p.rel_prop_dropout_f,
+        rel_prop: p.rel_prop,
+        span_emb_dim: span_emb_dim,
+        initializer: module_initializer
       },
     },
-    span_extractor: span_extractor
-  } else if p.model == "tree_ner" then {
-    type: "tree_ner",
-    text_field_embedder: text_field_embedder,
-    initializer: dygie_initializer,
-    loss_weights: p.loss_weights,
-    lexical_dropout: p.lexical_dropout,
-    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
-    feature_size: p.feature_size,
-    use_attentive_span_extractor: p.use_attentive_span_extractor,
-    max_span_width: p.max_span_width,
-    display_metrics: display_metrics[p.target],
-    context_layer: context_layer,
-    co_train: co_train,
-    use_tree: p.use_tree,
-    modules: {
-      ner: {
-        mention_feedforward: make_feedforward(span_emb_dim),
-        initializer: module_initializer,
-      },
-      coref: {
-        spans_per_word: p.coref_spans_per_word,
-        max_antecedents: p.coref_max_antecedents,
-        mention_feedforward: make_feedforward(span_emb_dim),
-        antecedent_feedforward: make_feedforward(coref_scorer_dim),
-        span_emb_dim: span_emb_dim,
-        coref_prop: p.coref_prop,
-        initializer: module_initializer
-      },
-      tree: {
-        span_emb_dim: span_emb_dim,
-        coref_prop: p.coref_prop,
-        initializer: module_initializer
-      },
-    } ,
     // feili
     span_extractor: span_extractor
   }
@@ -435,13 +378,11 @@ function(p) {
   numpy_seed: getattr(p, "numpy_seed", 1337),
   pytorch_seed: getattr(p, "pytorch_seed", 133),
   dataset_reader: {
-    type: "ie_json",
+    type: "ie_json1",
     token_indexers: token_indexers,
     max_span_width: p.max_span_width,
     context_width: p.context_width,
     debug: getattr(p, "debug", false),
-    // feili
-    label_scheme: p.label_scheme,
   },
   train_data_path: std.extVar("ie_train_data_path"),
   validation_data_path: std.extVar("ie_dev_data_path"),

@@ -14,7 +14,7 @@ from dygie.training.ner_metrics import NERMetrics
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-class NERTagger(Model):
+class NERTagger1(Model):
     """
     Named entity recognition module of DyGIE model.
 
@@ -39,7 +39,7 @@ class NERTagger(Model):
                  feature_size: int,
                  initializer: InitializerApplicator = InitializerApplicator(),
                  regularizer: Optional[RegularizerApplicator] = None) -> None:
-        super(NERTagger, self).__init__(vocab, regularizer)
+        super(NERTagger1, self).__init__(vocab, regularizer)
 
         # Number of classes determine the output dimension of the final layer
         self._n_labels = vocab.get_vocab_size('ner_labels')
