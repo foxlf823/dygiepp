@@ -19,14 +19,14 @@ local params = {
   debug: false,
 
   // Specifies the token-level features that will be created.
-  use_glove: true,
+  use_glove: false,
   tune_glove: false,
-  use_char: true,
+  use_char: false,
   use_elmo: false,
-  //elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
-  //elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
-  elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_options.json",
-  elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_weights.hdf5",
+  elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
+  elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
+  // elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_options.json",
+  // elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_weights.hdf5",
   use_attentive_span_extractor: false,
   use_bert_base: true,
   use_bert_large: false,
@@ -38,8 +38,10 @@ local params = {
   rel_prop_dropout_f: 0.0,
 
   // Specifies the model parameters.
+  use_lstm: false,
   lstm_hidden_size: 200,
   lstm_n_layers: 1,
+  lstm_dropout: 0.0,
   feature_size: 20,
   feedforward_layers: 2,
   char_n_filters: 50,
@@ -47,7 +49,6 @@ local params = {
   max_span_width: 15,
   feedforward_dropout: 0.4,
   lexical_dropout: 0.5,
-  lstm_dropout: 0.0,
   loss_weights: {          // Loss weights for the modules.
     ner: 1.0,
     relation: 0.0,
@@ -106,7 +107,7 @@ local params = {
   // seq_ner: flat, stacked
   label_scheme: "stacked",
   // use tree info or not
-  use_tree: false,
+  use_tree: true,
   // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12
   bert_name: "multi_cased_L-12_H-768_A-12",
 };

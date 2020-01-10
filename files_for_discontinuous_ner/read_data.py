@@ -6,7 +6,8 @@ train_file = '/Users/feili/eclipse-workspace/learning-to-recognize-discontiguous
 dev_file = '/Users/feili/eclipse-workspace/learning-to-recognize-discontiguous-entities/dev.txt'
 test_file = '/Users/feili/eclipse-workspace/learning-to-recognize-discontiguous-entities/test.txt'
 
-output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json'
+# output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json'
+output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-directed'
 
 verbose = False
 
@@ -260,7 +261,7 @@ def do_statistics(instances):
     print(stats)
 
 import os
-def transfer_into_dygie(instances, output_file):
+def transfer_into_dygie(instances, output_file, rel_directed):
     stats_treebank = dict(sent_notree=0, sent_mismatches=0, sent_matches=0)
     fp = open(output_file, 'w')
     for idx, instance in enumerate(instances):
@@ -280,7 +281,10 @@ def transfer_into_dygie(instances, output_file):
                 ner_for_this_sentence.append(entity_output)
 
             n_spans = len(entity['span'])
-            candidate_indices = [(i, j) for i in range(n_spans) for j in range(n_spans) if i!=j] # undirected relations
+            if rel_directed:
+                candidate_indices = [(i, j) for i in range(n_spans) for j in range(n_spans) if i < j]
+            else:
+                candidate_indices = [(i, j) for i in range(n_spans) for j in range(n_spans) if i!=j] # undirected relations
             for i, j in candidate_indices:
                 arg1_start = int(entity['span'][i].split(',')[0])
                 arg1_end = int(entity['span'][i].split(',')[1])
@@ -338,15 +342,15 @@ if __name__ == "__main__":
 
         filtered_instances = read_file(train_file, instanceFilter)
         do_statistics(filtered_instances)
-        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'train.json'))
+        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'train.json'), True)
 
 
         filtered_instances = read_file(dev_file, instanceFilter)
         do_statistics(filtered_instances)
-        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'dev.json'))
+        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'dev.json'), True)
 
         filtered_instances = read_file(test_file, instanceFilter)
         do_statistics(filtered_instances)
-        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'test.json'))
+        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'test.json'), True)
 
     pass

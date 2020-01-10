@@ -38,8 +38,10 @@ local params = {
   rel_prop_dropout_f: 0.0,
 
   // Specifies the model parameters.
+  use_lstm: true,
   lstm_hidden_size: 200,
   lstm_n_layers: 1,
+  lstm_dropout: 0.0,
   feature_size: 20,
   feedforward_layers: 2,
   char_n_filters: 50,
@@ -47,7 +49,6 @@ local params = {
   max_span_width: 6,
   feedforward_dropout: 0.4,
   lexical_dropout: 0.5,
-  lstm_dropout: 0.0,
   loss_weights: {          // Loss weights for the modules.
     ner: 1.0,
     relation: 1.0,

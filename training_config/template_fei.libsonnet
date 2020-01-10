@@ -68,7 +68,9 @@ function(p) {
     (if p.use_bert_base then bert_base_dim else 0) +
     (if p.use_bert_large then bert_large_dim else 0)),
   // If we're using Bert, no LSTM. We just pass the token embeddings right through.
-  local context_layer_output_size = (if p.finetune_bert
+  //local context_layer_output_size = (if p.finetune_bert
+  // feili
+  local context_layer_output_size = (if p.use_lstm == false
     then token_embedding_dim
     else 2 * p.lstm_hidden_size),
   local endpoint_span_emb_dim = if p.use_tree then 2 * context_layer_output_size + 2*p.feature_size
@@ -208,7 +210,9 @@ function(p) {
   // Modules
 
   // If finetuning Bert, no LSTM. Just pass through.
-  local context_layer = (if p.finetune_bert
+  // local context_layer = (if p.finetune_bert
+  // feili
+  local context_layer = (if p.use_lstm == false
     then {
       type: "pass_through",
       input_dim: token_embedding_dim
@@ -259,7 +263,8 @@ function(p) {
     initializer: dygie_initializer,
     loss_weights: p.loss_weights,
     lexical_dropout: p.lexical_dropout,
-    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    //lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    lstm_dropout: p.lstm_dropout,
     feature_size: p.feature_size,
     use_attentive_span_extractor: p.use_attentive_span_extractor,
     max_span_width: p.max_span_width,
@@ -341,7 +346,8 @@ function(p) {
     initializer: dygie_initializer,
     loss_weights: p.loss_weights,
     lexical_dropout: p.lexical_dropout,
-    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    //lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    lstm_dropout: p.lstm_dropout,
     feature_size: p.feature_size,
     use_attentive_span_extractor: p.use_attentive_span_extractor,
     max_span_width: p.max_span_width,
@@ -367,7 +373,8 @@ function(p) {
     initializer: dygie_initializer,
     loss_weights: p.loss_weights,
     lexical_dropout: p.lexical_dropout,
-    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    //lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    lstm_dropout: p.lstm_dropout,
     feature_size: p.feature_size,
     use_attentive_span_extractor: p.use_attentive_span_extractor,
     max_span_width: p.max_span_width,
@@ -393,7 +400,8 @@ function(p) {
     initializer: dygie_initializer,
     loss_weights: p.loss_weights,
     lexical_dropout: p.lexical_dropout,
-    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    //lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    lstm_dropout: p.lstm_dropout,
     feature_size: p.feature_size,
     use_attentive_span_extractor: p.use_attentive_span_extractor,
     max_span_width: p.max_span_width,
@@ -429,7 +437,8 @@ function(p) {
     initializer: dygie_initializer,
     loss_weights: p.loss_weights,
     lexical_dropout: p.lexical_dropout,
-    lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    //lstm_dropout: (if p.finetune_bert then 0 else p.lstm_dropout),
+    lstm_dropout: p.lstm_dropout,
     feature_size: p.feature_size,
     use_attentive_span_extractor: p.use_attentive_span_extractor,
     max_span_width: p.max_span_width,
