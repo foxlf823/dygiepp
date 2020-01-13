@@ -73,7 +73,8 @@ function(p) {
   local context_layer_output_size = (if p.use_lstm == false
     then token_embedding_dim
     else 2 * p.lstm_hidden_size),
-  local endpoint_span_emb_dim = if p.use_tree then 2 * context_layer_output_size + 2*p.feature_size
+  local endpoint_span_emb_dim = if p.tree_span_filter then 2 * context_layer_output_size + 3*p.feature_size
+    else if p.use_tree then 2 * context_layer_output_size + 2*p.feature_size
     else 2 * context_layer_output_size + p.feature_size,
   local attended_span_emb_dim = if p.use_attentive_span_extractor then token_embedding_dim else 0,
   // feili
@@ -409,6 +410,7 @@ function(p) {
     context_layer: context_layer,
     co_train: co_train,
     use_tree: p.use_tree,
+    tree_span_filter: p.tree_span_filter,
     modules: {
       ner: {
         mention_feedforward: make_feedforward(span_emb_dim),
@@ -425,8 +427,10 @@ function(p) {
       },
       tree: {
         span_emb_dim: span_emb_dim,
-        coref_prop: p.coref_prop,
-        initializer: module_initializer
+        tree_prop: p.tree_prop,
+        initializer: module_initializer,
+        tree_dropout: p.tree_dropout,
+        tree_children: p.tree_children,
       },
     } ,
     // feili
@@ -446,6 +450,7 @@ function(p) {
     context_layer: context_layer,
     co_train: co_train,
     use_tree: p.use_tree,
+    tree_span_filter: p.tree_span_filter,
     modules: {
       ner: {
         mention_feedforward: make_feedforward(span_emb_dim),
@@ -464,8 +469,10 @@ function(p) {
       },
       tree: {
         span_emb_dim: span_emb_dim,
-        coref_prop: p.coref_prop,
-        initializer: module_initializer
+        tree_prop: p.tree_prop,
+        initializer: module_initializer,
+        tree_dropout: p.tree_dropout,
+        tree_children: p.tree_children,
       },
     },
     // feili
@@ -489,6 +496,8 @@ function(p) {
     debug: getattr(p, "debug", false),
     // feili
     label_scheme: p.label_scheme,
+    tree_span_filter: p.tree_span_filter,
+    tree_match_filter: p.tree_match_filter,
   },
   train_data_path: std.extVar("ie_train_data_path"),
   validation_data_path: std.extVar("ie_dev_data_path"),

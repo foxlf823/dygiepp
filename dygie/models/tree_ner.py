@@ -60,6 +60,7 @@ class TreeNer(Model):
                  max_span_width: int,
                  loss_weights: Dict[str, int],
                  use_tree: bool,
+                 tree_span_filter: bool = False,
                  lexical_dropout: float = 0.2,
                  lstm_dropout: float = 0.4,
                  use_attentive_span_extractor: bool = False,
@@ -110,6 +111,10 @@ class TreeNer(Model):
                                               feature_size=feature_size,
                                               params=modules.pop("tree"))
 
+            self.tree_span_filter = tree_span_filter
+            if self.tree_span_filter:
+                self._tree_span_embedding = Embedding(vocab.get_vocab_size('span_tree_labels'), feature_size)
+
         initializer(self)
 
     @overrides
@@ -126,6 +131,7 @@ class TreeNer(Model):
                 ner_sequence_labels,
                 syntax_labels,
                 span_children,
+                span_tree_labels
                 # span_children_syntax
                 ):
 
@@ -175,7 +181,11 @@ class TreeNer(Model):
 
         if self.use_tree:
             syntax_embeddings = self._syntax_embedding(syntax_labels)
-            span_embeddings = torch.cat([span_embeddings, syntax_embeddings], -1)
+            if self.tree_span_filter:
+                tree_span_embeddings = self._tree_span_embedding(span_tree_labels)
+                span_embeddings = torch.cat([span_embeddings, syntax_embeddings, tree_span_embeddings], -1)
+            else:
+                span_embeddings = torch.cat([span_embeddings, syntax_embeddings], -1)
             span_embeddings = self._tree(span_embeddings, span_children, span_children_mask)
 
         # Make calls out to the modules to get results.

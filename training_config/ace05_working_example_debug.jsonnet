@@ -19,10 +19,10 @@ local params = {
   debug: true,
 
   // Specifies the token-level features that will be created.
-  use_glove: true,
+  use_glove: false,
   tune_glove: false,
   use_char: false,
-  use_elmo: true,
+  use_elmo: false,
   elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
   elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
   // elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_options.json",
@@ -45,8 +45,8 @@ local params = {
   feature_size: 20,
   feedforward_layers: 2,
   char_n_filters: 50,
-  feedforward_dim: 600,
-  max_span_width: 15,
+  feedforward_dim: 150,
+  max_span_width: 8,
   feedforward_dropout: 0.4,
   lexical_dropout: 0.5,
   loss_weights: {          // Loss weights for the modules.
@@ -108,6 +108,12 @@ local params = {
   label_scheme: "stacked",
   // use tree info or not
   use_tree: false,
+  tree_prop: 1,
+  tree_dropout: 0,
+  // pooling, conv, attention, rnn
+  tree_children: 'attention',
+  tree_span_filter: false,
+  tree_match_filter: false,
   // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12
   bert_name: "multi_cased_L-12_H-768_A-12",
 };
