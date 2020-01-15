@@ -60,6 +60,8 @@ class TreeNer(Model):
                  max_span_width: int,
                  loss_weights: Dict[str, int],
                  use_tree: bool,
+                 use_syntax: bool,
+                 tree_feature_first: bool,
                  tree_span_filter: bool = False,
                  lexical_dropout: float = 0.2,
                  lstm_dropout: float = 0.4,
@@ -106,7 +108,10 @@ class TreeNer(Model):
 
         self.use_tree = use_tree
         if self.use_tree:
-            self._syntax_embedding = Embedding(vocab.get_vocab_size('span_syntax_labels'), feature_size)
+            self.tree_feature_first = tree_feature_first
+            self.use_syntax = use_syntax
+            if self.use_syntax:
+                self._syntax_embedding = Embedding(vocab.get_vocab_size('span_syntax_labels'), feature_size)
             self._tree = Tree.from_params(vocab=vocab,
                                               feature_size=feature_size,
                                               params=modules.pop("tree"))
@@ -180,13 +185,31 @@ class TreeNer(Model):
         span_embeddings = self._endpoint_span_extractor(contextualized_embeddings, spans, text_mask)
 
         if self.use_tree:
-            syntax_embeddings = self._syntax_embedding(syntax_labels)
-            if self.tree_span_filter:
-                tree_span_embeddings = self._tree_span_embedding(span_tree_labels)
-                span_embeddings = torch.cat([span_embeddings, syntax_embeddings, tree_span_embeddings], -1)
+            if self.tree_feature_first:
+                span_feature_group = [span_embeddings]
+                if self.use_syntax:
+                    syntax_embeddings = self._syntax_embedding(syntax_labels)
+                    span_feature_group.append(syntax_embeddings)
+                if self.tree_span_filter:
+                    tree_span_embeddings = self._tree_span_embedding(span_tree_labels)
+                    span_feature_group.append(tree_span_embeddings)
+
+                span_embeddings = torch.cat(span_feature_group, -1)
+                span_embeddings = self._tree(span_embeddings, span_children, span_children_mask)
             else:
-                span_embeddings = torch.cat([span_embeddings, syntax_embeddings], -1)
-            span_embeddings = self._tree(span_embeddings, span_children, span_children_mask)
+                span_embeddings = self._tree(span_embeddings, span_children, span_children_mask)
+
+                span_feature_group = [span_embeddings]
+                if self.use_syntax:
+                    syntax_embeddings = self._syntax_embedding(syntax_labels)
+                    span_feature_group.append(syntax_embeddings)
+                if self.tree_span_filter:
+                    tree_span_embeddings = self._tree_span_embedding(span_tree_labels)
+                    span_feature_group.append(tree_span_embeddings)
+
+                span_embeddings = torch.cat(span_feature_group, -1)
+
+
 
         # Make calls out to the modules to get results.
         output_coref = {'loss': 0}

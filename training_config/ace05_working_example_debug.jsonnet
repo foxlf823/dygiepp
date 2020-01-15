@@ -109,11 +109,13 @@ local params = {
   // use tree info or not
   use_tree: false,
   tree_prop: 1,
+  use_syntax: true,
   tree_dropout: 0,
   // pooling, conv, attention, rnn
   tree_children: 'attention',
   tree_span_filter: false,
   tree_match_filter: false,
+  tree_feature_first: true,
   // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12
   bert_name: "multi_cased_L-12_H-768_A-12",
 };

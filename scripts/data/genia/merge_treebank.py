@@ -29,6 +29,10 @@ tree_dir = f"{genia_raw}/GENIA_treebank_v1"
 coref_dir = f"{genia_raw}/GENIA_MedCo_coreference_corpus_1.0"
 alignment_file = f"{genia_raw}/align/alignment.csv"
 
+# output_directory = "json-treebank"
+output_directory = "json-matched"
+only_match = True
+
 alignment = pd.read_csv(alignment_file).set_index("ner")
 
 class Coref(object):
@@ -393,7 +397,7 @@ def one_fold(fold, coref_types, out_dir, keep_excluded):
                     for e in ner:
                         entity_stat['entity'] += 1
                         entity_length[e[1]-e[0]+1] += 1
-                        if e[1] - e[0] + 1 <= 10:
+                        if e[1] - e[0] + 1 <= 8:
                             entity_stat['entity_common'] += 1
                 pmid = int(doc["doc_key"].split("_")[0])
                 medline_id = alignment.loc[pmid][0]
@@ -408,9 +412,25 @@ def one_fold(fold, coref_types, out_dir, keep_excluded):
                     soup = BS(f_xml.read(), "lxml")
                     trees = build_tree(soup, doc, True, pmid, medline_id)
                 doc["trees"] = trees
-                # Save unless it's bad and we're excluding bad documents.
-                if keep_excluded or doc["doc_key"] not in excluded:
-                    f_out.write(json.dumps(doc) + "\n")
+                if only_match:
+                    good = True
+                    for tree in doc['trees']:
+                        if 'match' not in tree:
+                            good = False
+                            break
+                        if not tree['match']:
+                            good = False
+                            break
+                    if good:
+                        # Save unless it's bad and we're excluding bad documents.
+                        if keep_excluded or doc["doc_key"] not in excluded:
+                            f_out.write(json.dumps(doc) + "\n")
+                    # else:
+                    #     a = 1
+                else:
+                    # Save unless it's bad and we're excluding bad documents.
+                    if keep_excluded or doc["doc_key"] not in excluded:
+                        f_out.write(json.dumps(doc) + "\n")
     print(entity_length)
     print(entity_stat)
 
@@ -448,7 +468,7 @@ def main():
             "WHOLE-PART"
         ]
 
-    out_dir = f"{genia_processed}/json-treebank"
+    out_dir = f"{genia_processed}/{output_directory}"
 
     if not path.exists(out_dir):
         os.mkdir(out_dir)

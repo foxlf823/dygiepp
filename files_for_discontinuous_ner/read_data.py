@@ -1,15 +1,27 @@
 
 import json
 from stanfordcorenlp import StanfordCoreNLP
+from bs4 import BeautifulSoup as BS
+from xml.etree import ElementTree
 
 train_file = '/Users/feili/eclipse-workspace/learning-to-recognize-discontiguous-entities/train.txt'
 dev_file = '/Users/feili/eclipse-workspace/learning-to-recognize-discontiguous-entities/dev.txt'
 test_file = '/Users/feili/eclipse-workspace/learning-to-recognize-discontiguous-entities/test.txt'
 
 # output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json'
-output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-directed'
+
+rel_directed = False
+# output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-directed'
+
+only_match = True
+# output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-matched'
 
 verbose = False
+
+ctake_input_dir = '/Users/feili/tools/apache-ctakes-4.0.0/clef_input'
+ctake_output_dir = '/Users/feili/tools/apache-ctakes-4.0.0/clef_output'
+# output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-ctake'
+output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-ctake-matched'
 
 # ALL_INSTANCES,
 # ALL_WITH_ENTITIES,
@@ -261,7 +273,7 @@ def do_statistics(instances):
     print(stats)
 
 import os
-def transfer_into_dygie(instances, output_file, rel_directed):
+def transfer_into_dygie(instances, output_file):
     stats_treebank = dict(sent_notree=0, sent_mismatches=0, sent_matches=0)
     fp = open(output_file, 'w')
     for idx, instance in enumerate(instances):
@@ -302,16 +314,22 @@ def transfer_into_dygie(instances, output_file, rel_directed):
         except Exception as e:
             if verbose:
                 print('[Warning] StanfordCore Timeout: ', instance['tokens'])
-            doc['trees'].append({})
-            stats_treebank['sent_notree'] += 1
-            fp.write(json.dumps(doc) + "\n")
-            continue
+            if only_match:
+                continue
+            else:
+                doc['trees'].append({})
+                stats_treebank['sent_notree'] += 1
+                fp.write(json.dumps(doc) + "\n")
+                continue
 
         if len(nlp_res['sentences']) >= 2:
             if verbose:
                 print('[Warning] sentence segmentation of StandfordCoreNLP do not match: ', instance['tokens'])
-            doc['trees'].append({})
-            stats_treebank['sent_notree'] += 1
+            if only_match:
+                continue
+            else:
+                doc['trees'].append({})
+                stats_treebank['sent_notree'] += 1
         else:
             tree, _ = readTree(nlp_res['sentences'][0]['parse'], 0)
             nodes = []
@@ -323,7 +341,10 @@ def transfer_into_dygie(instances, output_file, rel_directed):
                     print("sent mismatch, doc: {}, original sentence: {}, tree sentence {}".format(doc['doc_key'],
                                                                                                    instance['tokens'],
                                                                                                    tree.show_leaf_node()))
-                stats_treebank['sent_mismatches'] += 1
+                if only_match:
+                    continue
+                else:
+                    stats_treebank['sent_mismatches'] += 1
             else:
                 stats_treebank['sent_matches'] += 1
             tree.get_span_for_node(instance['tokens'])
@@ -334,6 +355,97 @@ def transfer_into_dygie(instances, output_file, rel_directed):
     fp.close()
     print(stats_treebank)
 
+def prepare_data_for_ctake(instances, output_dir):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    for idx, instance in enumerate(instances):
+
+        file_name = instance['doc'][instance['doc'].rfind('/')+1:] + "_" + str(instance['start']) + "_" + str(instance['end'])
+
+        fp = open(os.path.join(output_dir, file_name), 'w')
+        fp.write(instance['text']+"\n")
+        fp.close()
+
+def transfer_ctake_data_into_dygie(instances, ctake_dir, output_file):
+    stats_treebank = dict(sent_notree=0, sent_mismatches=0, sent_matches=0)
+    fp = open(output_file, 'w')
+    for idx, instance in enumerate(instances):
+        doc = {}
+        doc['doc_key'] = instance['doc'] + "_" + str(instance['start']) + "_" + str(instance['end'])
+        doc['sentences'] = []
+        doc['sentences'].append(instance['tokens'])
+        doc['ner'] = []
+        ner_for_this_sentence = []
+        doc['relations'] = []
+        relation_for_this_sentence = []
+        for entity in instance['entities']:
+            for span in entity['span']:
+                start = int(span.split(',')[0])
+                end = int(span.split(',')[1])
+                entity_output = [start, end, entity['type']]
+                ner_for_this_sentence.append(entity_output)
+
+            n_spans = len(entity['span'])
+            if rel_directed:
+                candidate_indices = [(i, j) for i in range(n_spans) for j in range(n_spans) if i < j]
+            else:
+                candidate_indices = [(i, j) for i in range(n_spans) for j in range(n_spans) if
+                                     i != j]  # undirected relations
+            for i, j in candidate_indices:
+                arg1_start = int(entity['span'][i].split(',')[0])
+                arg1_end = int(entity['span'][i].split(',')[1])
+                arg2_start = int(entity['span'][j].split(',')[0])
+                arg2_end = int(entity['span'][j].split(',')[1])
+                relation_for_this_sentence.append([arg1_start, arg1_end, arg2_start, arg2_end, "Combined"])
+
+        doc['ner'].append(ner_for_this_sentence)
+        doc['relations'].append(relation_for_this_sentence)
+
+        doc['trees'] = []
+        ctake_file_name = instance['doc'][instance['doc'].rfind('/')+1:] + "_" + str(instance['start']) + "_" + str(instance['end'])
+
+        tree = ElementTree.parse(os.path.join(ctake_dir, ctake_file_name+".xml"))
+        root = tree.getroot()
+        tree_sentences = []
+        for child in root:
+            if child.tag == 'org.apache.ctakes.typesystem.type.syntax.TopTreebankNode':
+                tree_sentences.append(child.attrib['treebankParse'])
+
+        if len(tree_sentences) != 1:
+            if verbose:
+                print('[Warning] sentence segmentation of ctake do not match: ', instance['tokens'])
+            if only_match:
+                continue
+            else:
+                doc['trees'].append({})
+                stats_treebank['sent_notree'] += 1
+        else:
+            tree, _ = readTree(tree_sentences[0], 0)
+            nodes = []
+            get_node(tree, nodes, -1, False)
+            tree = Tree(nodes)
+            tree.get_span_for_leaf_node(instance['tokens'])
+            if not tree.match:
+                if verbose:
+                    print("sent mismatch, doc: {}, original sentence: {}, tree sentence {}".format(doc['doc_key'],
+                                                                                                   instance['tokens'],
+                                                                                                   tree.show_leaf_node()))
+                if only_match:
+                    continue
+                else:
+                    stats_treebank['sent_mismatches'] += 1
+            else:
+                stats_treebank['sent_matches'] += 1
+            tree.get_span_for_node(instance['tokens'])
+            doc['trees'].append(tree.to_json())
+
+        fp.write(json.dumps(doc) + "\n")
+
+    fp.close()
+    print(stats_treebank)
+
+
 if __name__ == "__main__":
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -341,16 +453,23 @@ if __name__ == "__main__":
     with StanfordCoreNLP('./stanford-corenlp-full-2018-10-05', memory='8g', timeout=60000) as nlp:
 
         filtered_instances = read_file(train_file, instanceFilter)
-        do_statistics(filtered_instances)
-        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'train.json'), True)
-
+        # do_statistics(filtered_instances)
+        # transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'train.json'))
+        # prepare_data_for_ctake(filtered_instances, os.path.join(ctake_input_dir, 'train'))
+        transfer_ctake_data_into_dygie(filtered_instances, os.path.join(ctake_output_dir, 'train'), os.path.join(output_dir, 'train.json'))
 
         filtered_instances = read_file(dev_file, instanceFilter)
-        do_statistics(filtered_instances)
-        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'dev.json'), True)
+        # do_statistics(filtered_instances)
+        # transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'dev.json'))
+        # prepare_data_for_ctake(filtered_instances, os.path.join(ctake_input_dir, 'dev'))
+        transfer_ctake_data_into_dygie(filtered_instances, os.path.join(ctake_output_dir, 'dev'),
+                                       os.path.join(output_dir, 'dev.json'))
 
         filtered_instances = read_file(test_file, instanceFilter)
-        do_statistics(filtered_instances)
-        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'test.json'), True)
+        # do_statistics(filtered_instances)
+        # transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'test.json'))
+        # prepare_data_for_ctake(filtered_instances, os.path.join(ctake_input_dir, 'test'))
+        transfer_ctake_data_into_dygie(filtered_instances, os.path.join(ctake_output_dir, 'test'),
+                                       os.path.join(output_dir, 'test.json'))
 
     pass

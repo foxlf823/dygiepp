@@ -73,13 +73,30 @@ function(p) {
   local context_layer_output_size = (if p.use_lstm == false
     then token_embedding_dim
     else 2 * p.lstm_hidden_size),
-  local endpoint_span_emb_dim = if p.tree_span_filter then 2 * context_layer_output_size + 3*p.feature_size
-    else if p.use_tree then 2 * context_layer_output_size + 2*p.feature_size
-    else 2 * context_layer_output_size + p.feature_size,
+  //local endpoint_span_emb_dim = ((if p.use_syntax then p.feature_size else 0) +
+  //  (if p.tree_span_filter then p.feature_size else 0) +
+  //  2 * context_layer_output_size + p.feature_size
+  //),
+  local endpoint_span_emb_dim = 2 * context_layer_output_size + p.feature_size,
+  local tree_span_emb_dim = (if p.tree_feature_first then
+    (
+      (if p.use_syntax then p.feature_size else 0) +
+      (if p.tree_span_filter then p.feature_size else 0) + endpoint_span_emb_dim
+    )
+    else endpoint_span_emb_dim),
+  //local endpoint_span_emb_dim = if p.tree_span_filter then 2 * context_layer_output_size + 3*p.feature_size
+  //  else if p.use_tree then 2 * context_layer_output_size + 2*p.feature_size
+  //  else 2 * context_layer_output_size + p.feature_size,
   local attended_span_emb_dim = if p.use_attentive_span_extractor then token_embedding_dim else 0,
   // feili
   local span_emb_dim =
-    if p.span_extractor == "endpoint" then endpoint_span_emb_dim
+    if p.span_extractor == "endpoint" then (if p.use_tree then
+     (if p.tree_feature_first then tree_span_emb_dim else (
+        (if p.use_syntax then p.feature_size else 0) +
+        (if p.tree_span_filter then p.feature_size else 0) + tree_span_emb_dim
+       )
+     )
+     else endpoint_span_emb_dim)
     else if p.span_extractor == "pooling" then context_layer_output_size + p.feature_size
     else if p.span_extractor == "conv" then context_layer_output_size + p.feature_size
     else if p.span_extractor == "attention" then context_layer_output_size + p.feature_size
@@ -410,6 +427,8 @@ function(p) {
     context_layer: context_layer,
     co_train: co_train,
     use_tree: p.use_tree,
+    use_syntax: p.use_syntax,
+    tree_feature_first: p.tree_feature_first,
     tree_span_filter: p.tree_span_filter,
     modules: {
       ner: {
@@ -426,7 +445,7 @@ function(p) {
         initializer: module_initializer
       },
       tree: {
-        span_emb_dim: span_emb_dim,
+        span_emb_dim: tree_span_emb_dim,
         tree_prop: p.tree_prop,
         initializer: module_initializer,
         tree_dropout: p.tree_dropout,
@@ -450,6 +469,8 @@ function(p) {
     context_layer: context_layer,
     co_train: co_train,
     use_tree: p.use_tree,
+    use_syntax: p.use_syntax,
+    tree_feature_first: p.tree_feature_first,
     tree_span_filter: p.tree_span_filter,
     modules: {
       ner: {
@@ -468,7 +489,7 @@ function(p) {
         initializer: module_initializer
       },
       tree: {
-        span_emb_dim: span_emb_dim,
+        span_emb_dim: tree_span_emb_dim,
         tree_prop: p.tree_prop,
         initializer: module_initializer,
         tree_dropout: p.tree_dropout,
