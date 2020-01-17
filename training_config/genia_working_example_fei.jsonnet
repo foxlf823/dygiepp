@@ -115,7 +115,7 @@ local params = {
   tree_children: 'attention',
   tree_span_filter: false,
   tree_match_filter: false,
-  tree_feature_first: true,
+  tree_feature_first: false,
   // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12
   bert_name: "scibert_scivocab_cased",
 };
