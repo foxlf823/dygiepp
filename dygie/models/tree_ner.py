@@ -136,7 +136,8 @@ class TreeNer(Model):
                 ner_sequence_labels,
                 syntax_labels,
                 span_children,
-                span_tree_labels
+                span_tree_labels,
+                dep_span_children,
                 # span_children_syntax
                 ):
 

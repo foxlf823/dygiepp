@@ -18,7 +18,8 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s
 from allennlp.commands import main
 
 experiment_name="clef"
-data_root="./data/clef/processed-data/json"
+# data_root="./data/clef/processed-data/json"
+data_root="./data/clef/processed-data/json-dep"
 config_file="./training_config/clef_working_example_debug.jsonnet"
 cuda_device=-1
 

@@ -104,9 +104,9 @@ local params = {
   // seq_ner: flat, stacked
   label_scheme: "stacked",
   // use tree info or not
-  use_tree: true,
+  use_tree: false,
   tree_prop: 1,
-  use_syntax: true,
+  use_syntax: false,
   tree_dropout: 0,
   // pooling, conv, attention, rnn
   tree_children: 'attention',
@@ -115,6 +115,7 @@ local params = {
   tree_feature_first: true,
   // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12, clinicalbert_biobert_disch_100000
   bert_name: "clinicalbert_biobert_disch_100000",
+  use_dep: false,
 };
 
 ////////////////////

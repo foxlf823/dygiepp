@@ -63,6 +63,7 @@ class DisNER(Model):
                  loss_weights: Dict[str, int],
                  use_tree: bool,
                  use_syntax: bool,
+                 use_dep: bool,
                  tree_feature_first: bool,
                  tree_span_filter: bool = False,
                  lexical_dropout: float = 0.2,
@@ -127,6 +128,12 @@ class DisNER(Model):
             if self.tree_span_filter:
                 self._tree_span_embedding = Embedding(vocab.get_vocab_size('span_tree_labels'), feature_size)
 
+        self.use_dep = use_dep
+        if self.use_dep:
+            self._dep_tree = Tree.from_params(vocab=vocab,
+                                              feature_size=feature_size,
+                                              params=modules.pop("dep_tree"))
+
         initializer(self)
 
     @overrides
@@ -143,7 +150,8 @@ class DisNER(Model):
                 ner_sequence_labels,
                 syntax_labels,
                 span_children,
-                span_tree_labels
+                span_tree_labels,
+                dep_span_children,
                 # span_children_syntax
                 ):
         """
@@ -178,6 +186,8 @@ class DisNER(Model):
         span_mask = (spans[:, :, 0] >= 0).float()
         if self.use_tree:
             span_children_mask = (span_children[:, :, :, 0] >= 0).float()
+        if self.use_dep:
+            dep_span_children_mask = (dep_span_children[:, :, :, 0] >= 0).float()
         # SpanFields return -1 when they are used as padding. As we do
         # some comparisons based on span widths when we attend over the
         # span representations that we generate from these indices, we
@@ -189,6 +199,8 @@ class DisNER(Model):
         spans = F.relu(spans.float()).long()
         if self.use_tree:
             span_children = F.relu(span_children.float()).long()
+        if self.use_dep:
+            dep_span_children = F.relu(dep_span_children.float()).long()
 
         # Shape: (batch_size, num_spans, 2 * encoding_dim + feature_size)
         span_embeddings = self._endpoint_span_extractor(contextualized_embeddings, spans, text_mask)
@@ -218,7 +230,8 @@ class DisNER(Model):
 
                 span_embeddings = torch.cat(span_feature_group, -1)
 
-
+        if self.use_dep:
+            span_embeddings = self._dep_tree(span_embeddings, dep_span_children, dep_span_children_mask)
 
         # Make calls out to the modules to get results.
         output_ner = {'loss': 0}

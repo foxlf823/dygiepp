@@ -71,9 +71,11 @@ def format_label_fields(ner: List[List[Union[int,str]]],
                         events: List[List[Union[int,str]]],
                         sentence_start: int,
                         tree: Dict[str, Any],
-                        tree_match_filter: bool) -> Tuple[Dict[Tuple[int,int],str],
+                        tree_match_filter: bool,
+                        dep_tree: Dict[str, Any],) -> Tuple[Dict[Tuple[int,int],str],
                                                       Dict[Tuple[Tuple[int,int],Tuple[int,int]],str],
                                                       Dict[Tuple[int,int],int], Dict[Tuple[int, int],str],
+                                                    Dict[Tuple[int, int],List[Tuple[int, int]]],
                                                     Dict[Tuple[int, int],List[Tuple[int, int]]]]:
     """
     Format the label fields, making the following changes:
@@ -144,7 +146,20 @@ def format_label_fields(ner: List[List[Union[int,str]]],
     else:
         children_dict = MissingDict([])
 
-    return ner_dict, relation_dict, cluster_dict, trigger_dict, arg_dict, syntax_dict, children_dict
+    # Children in Dep Tree
+    if 'match' in dep_tree:
+        dep_children_dict = MissingDict([],
+                                    (
+                                        ((dep_span[0], dep_span[1]),
+                                         [(dep_tree['nodes'][child][4][0], dep_tree['nodes'][child][4][1]) for child in
+                                          children])
+                                        for parent, children, dep, word, dep_span in dep_tree['nodes']
+                                    )
+                                    )
+    else:
+        dep_children_dict = MissingDict([])
+
+    return ner_dict, relation_dict, cluster_dict, trigger_dict, arg_dict, syntax_dict, children_dict, dep_children_dict
 
 def span_in_tree(span_ix, tree):
     if 'match' in tree:
@@ -225,13 +240,16 @@ class IEJsonReader(DatasetReader):
                 if field not in js:
                     js[field] = [[] for _ in range(n_sentences)]
 
+            if "dep" not in js:
+                js['dep'] = []
+
             cluster_dict_doc = make_cluster_dict(js["clusters"])
             #zipped = zip(js["sentences"], js["ner"], js["relations"], js["events"])
             zipped = zip(js["sentences"], js["ner"], js["relations"], js["events"], js["sentence_groups"],
-                         js["sentence_start_index"], js["sentence_end_index"], js['trees'])
+                         js["sentence_start_index"], js["sentence_end_index"], js['trees'], js['dep'])
 
             # Loop over the sentences.
-            for sentence_num, (sentence, ner, relations, events, groups, start_ix, end_ix, tree) in enumerate(zipped):
+            for sentence_num, (sentence, ner, relations, events, groups, start_ix, end_ix, tree, dep) in enumerate(zipped):
 
                 sentence_end = sentence_start + len(sentence) - 1
                 cluster_tmp, cluster_dict_doc = cluster_dict_sentence(
@@ -239,12 +257,12 @@ class IEJsonReader(DatasetReader):
 
                 # TODO(dwadden) too many outputs. Re-write as a dictionary.
                 # Make span indices relative to sentence instead of document.
-                ner_dict, relation_dict, cluster_dict, trigger_dict, argument_dict, syntax_dict, children_dict = \
-                    format_label_fields(ner, relations, cluster_tmp, events, sentence_start, tree, self._tree_match_filter)
+                ner_dict, relation_dict, cluster_dict, trigger_dict, argument_dict, syntax_dict, children_dict, dep_children_dict\
+                    = format_label_fields(ner, relations, cluster_tmp, events, sentence_start, tree, self._tree_match_filter, dep)
                 sentence_start += len(sentence)
                 instance = self.text_to_instance(
                     sentence, ner_dict, relation_dict, cluster_dict, trigger_dict, argument_dict,
-                    doc_key, dataset, sentence_num, groups, start_ix, end_ix, tree, syntax_dict, children_dict)
+                    doc_key, dataset, sentence_num, groups, start_ix, end_ix, tree, syntax_dict, children_dict, dep_children_dict)
                 yield instance
 
 
@@ -264,7 +282,8 @@ class IEJsonReader(DatasetReader):
                          end_ix: int,
                          tree: Dict[str, Any],
                          syntax_dict: Dict[Tuple[int, int], str],
-                         children_dict: Dict[Tuple[int, int],List[Tuple[int, int]]]):
+                         children_dict: Dict[Tuple[int, int],List[Tuple[int, int]]],
+                         dep_children_dict: Dict[Tuple[int, int],List[Tuple[int, int]]],):
         """
         TODO(dwadden) document me.
         """
@@ -294,7 +313,9 @@ class IEJsonReader(DatasetReader):
                         seq_dict=ner_sequence_labels,
                         tree=tree,
                         syntax_dict=syntax_dict,
-                        children_dict=children_dict)
+                        children_dict=children_dict,
+                        dep_children_dict=dep_children_dict
+                        )
         metadata_field = MetadataField(metadata)
 
         # Trigger labels. One label per token in the input.
@@ -313,6 +334,7 @@ class IEJsonReader(DatasetReader):
         span_coref_labels = []
         span_syntax_labels = []
         span_children_labels = []
+        dep_span_children_labels = []
         # span_children_syntax_labels = []
         span_tree_labels = []
         raw_spans = []
@@ -364,6 +386,18 @@ class IEJsonReader(DatasetReader):
 
             span_children_labels.append(children_field)
 
+        for span in raw_spans:
+            if len(dep_children_dict[span]) == 0:
+                children_field = ListField([IndexField(-1, span_field)])
+            else:
+                children_field = []
+                for children_span in dep_children_dict[span]:
+                    if children_span in raw_spans:
+                        children_field.append(IndexField(raw_spans.index(children_span), span_field))
+                    else:
+                        children_field.append(IndexField(-1, span_field))
+                children_field = ListField(children_field)
+            dep_span_children_labels.append(children_field)
 
 
 
@@ -416,6 +450,7 @@ class IEJsonReader(DatasetReader):
         span_children_field = ListField(span_children_labels)
         span_tree_field = SequenceLabelField(span_tree_labels, span_field, label_namespace="span_tree_labels")
         # span_children_syntax_field = ListField(span_children_syntax_labels)
+        dep_span_children_field = ListField(dep_span_children_labels)
 
         # Pull it  all together.
         fields = dict(text=text_field_with_context,
@@ -430,7 +465,8 @@ class IEJsonReader(DatasetReader):
                       ner_sequence_labels=ner_sequence_label_field,
                       syntax_labels=span_syntax_field,
                       span_children=span_children_field,
-                      span_tree_labels=span_tree_field)
+                      span_tree_labels=span_tree_field,
+                      dep_span_children=dep_span_children_field)
                       # span_children_syntax=span_children_syntax_field)
 
         return Instance(fields)

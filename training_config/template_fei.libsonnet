@@ -472,6 +472,7 @@ function(p) {
     use_syntax: p.use_syntax,
     tree_feature_first: p.tree_feature_first,
     tree_span_filter: p.tree_span_filter,
+    use_dep: p.use_dep,
     modules: {
       ner: {
         mention_feedforward: make_feedforward(span_emb_dim),
@@ -490,6 +491,13 @@ function(p) {
       },
       tree: {
         span_emb_dim: tree_span_emb_dim,
+        tree_prop: p.tree_prop,
+        initializer: module_initializer,
+        tree_dropout: p.tree_dropout,
+        tree_children: p.tree_children,
+      },
+      dep_tree: {
+        span_emb_dim: span_emb_dim,
         tree_prop: p.tree_prop,
         initializer: module_initializer,
         tree_dropout: p.tree_dropout,
