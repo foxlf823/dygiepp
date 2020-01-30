@@ -239,6 +239,21 @@ def getDepTree(tokens, edges_list):
         assert len(set(node.children)) == len(node.children)
     return nodes
 
+# only store adjacent relations
+def getDepTree1(tokens, edges_list):
+    nodes = [[] for token in tokens]
+    nodes_dict = {"nodes":nodes}
+
+    for edge in edges_list:
+        if edge['dep'] == 'ROOT':
+            continue
+        if edge['dependent']-1 not in nodes[edge['governor']-1]:
+            nodes[edge['governor']-1].append(edge['dependent']-1)
+        if edge['governor']-1 not in nodes[edge['dependent']-1]:
+            nodes[edge['dependent']-1].append(edge['governor']-1)
+
+    return nodes_dict
+
 
 
 def hasDiscontiguousEntity(instance):
@@ -383,9 +398,11 @@ def transfer_into_dygie(instances, output_file):
         tree.get_span_for_node(instance['tokens'])
         doc['trees'].append(tree.to_json())
         if use_dep:
-            dep_nodes = getDepTree(nlp_res['sentences'][0]['tokens'], nlp_res['sentences'][0]['basicDependencies'])
-            dep_tree = Tree(dep_nodes)
-            doc['dep'].append(dep_tree.to_json())
+            # dep_nodes = getDepTree(nlp_res['sentences'][0]['tokens'], nlp_res['sentences'][0]['basicDependencies'])
+            # dep_tree = Tree(dep_nodes)
+            # doc['dep'].append(dep_tree.to_json())
+            dep_nodes = getDepTree1(nlp_res['sentences'][0]['tokens'], nlp_res['sentences'][0]['basicDependencies'])
+            doc['dep'].append(dep_nodes)
 
         fp.write(json.dumps(doc)+"\n")
 

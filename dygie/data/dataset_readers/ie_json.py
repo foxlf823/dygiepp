@@ -147,17 +147,27 @@ def format_label_fields(ner: List[List[Union[int,str]]],
         children_dict = MissingDict([])
 
     # Children in Dep Tree
-    if 'match' in dep_tree:
-        dep_children_dict = MissingDict([],
+    # if 'match' in dep_tree:
+    #     dep_children_dict = MissingDict([],
+    #                                 (
+    #                                     ((dep_span[0], dep_span[1]),
+    #                                      [(dep_tree['nodes'][child][4][0], dep_tree['nodes'][child][4][1]) for child in
+    #                                       children])
+    #                                     for parent, children, dep, word, dep_span in dep_tree['nodes']
+    #                                 )
+    #                                 )
+    # else:
+    #     dep_children_dict = MissingDict([])
+
+    if 'nodes' in dep_tree:
+        dep_children_dict = MissingDict("",
                                     (
-                                        ((dep_span[0], dep_span[1]),
-                                         [(dep_tree['nodes'][child][4][0], dep_tree['nodes'][child][4][1]) for child in
-                                          children])
-                                        for parent, children, dep, word, dep_span in dep_tree['nodes']
+                                        ((node_idx, adj_node_idx), "1")
+                                        for node_idx, adj_node_idxes in enumerate(dep_tree['nodes']) for adj_node_idx in adj_node_idxes
                                     )
                                     )
     else:
-        dep_children_dict = MissingDict([])
+        dep_children_dict = MissingDict("")
 
     return ner_dict, relation_dict, cluster_dict, trigger_dict, arg_dict, syntax_dict, children_dict, dep_children_dict
 
@@ -386,19 +396,28 @@ class IEJsonReader(DatasetReader):
 
             span_children_labels.append(children_field)
 
-        for span in raw_spans:
-            if len(dep_children_dict[span]) == 0:
-                children_field = ListField([IndexField(-1, span_field)])
-            else:
-                children_field = []
-                for children_span in dep_children_dict[span]:
-                    if children_span in raw_spans:
-                        children_field.append(IndexField(raw_spans.index(children_span), span_field))
-                    else:
-                        children_field.append(IndexField(-1, span_field))
-                children_field = ListField(children_field)
-            dep_span_children_labels.append(children_field)
+        # for span in raw_spans:
+        #     if len(dep_children_dict[span]) == 0:
+        #         children_field = ListField([IndexField(-1, span_field)])
+        #     else:
+        #         children_field = []
+        #         for children_span in dep_children_dict[span]:
+        #             if children_span in raw_spans:
+        #                 children_field.append(IndexField(raw_spans.index(children_span), span_field))
+        #             else:
+        #                 children_field.append(IndexField(-1, span_field))
+        #         children_field = ListField(children_field)
+        #     dep_span_children_labels.append(children_field)
 
+        n_tokens = len(sentence)
+        candidate_indices = [(i, j) for i in range(n_tokens) for j in range(n_tokens)]
+        dep_adjs = []
+        dep_adjs_indices = []
+        for token_pair in candidate_indices:
+            dep_adj_label = dep_children_dict[token_pair]
+            if dep_adj_label:
+                dep_adjs_indices.append(token_pair)
+                dep_adjs.append(dep_adj_label)
 
 
         ner_label_field = SequenceLabelField(span_ner_labels, span_field,
@@ -450,7 +469,10 @@ class IEJsonReader(DatasetReader):
         span_children_field = ListField(span_children_labels)
         span_tree_field = SequenceLabelField(span_tree_labels, span_field, label_namespace="span_tree_labels")
         # span_children_syntax_field = ListField(span_children_syntax_labels)
-        dep_span_children_field = ListField(dep_span_children_labels)
+        # dep_span_children_field = ListField(dep_span_children_labels)
+        dep_span_children_field = AdjacencyField(
+            indices=dep_adjs_indices, sequence_field=text_field, labels=dep_adjs,
+            label_namespace="dep_adj_labels")
 
         # Pull it  all together.
         fields = dict(text=text_field_with_context,

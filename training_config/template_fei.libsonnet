@@ -497,7 +497,8 @@ function(p) {
         tree_children: p.tree_children,
       },
       dep_tree: {
-        span_emb_dim: span_emb_dim,
+        //span_emb_dim: span_emb_dim,
+        span_emb_dim: context_layer_output_size,
         tree_prop: p.tree_prop,
         initializer: module_initializer,
         tree_dropout: p.tree_dropout,
