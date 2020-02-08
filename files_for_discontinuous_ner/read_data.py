@@ -23,8 +23,11 @@ ctake_output_dir = '/Users/feili/tools/apache-ctakes-4.0.0/clef_output'
 # output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-ctake'
 # output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-ctake-matched'
 
-use_dep = True
-output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-dep'
+use_dep = False
+# output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-dep'
+
+use_tree_feature = True
+output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-tf'
 
 # ALL_INSTANCES,
 # ALL_WITH_ENTITIES,
@@ -42,10 +45,12 @@ class Tree(object):
         self.match = True
 
         self.leaf_nodes = []
-        for node in self.nodes:
+        self.leaf_nodes_idx = []
+        for idx, node in enumerate(self.nodes):
             # if node.data != "":
             if len(node.children) == 0 and node.data != "":  # some leaf nodes don't correspond to tokens
                 self.leaf_nodes.append(node)
+                self.leaf_nodes_idx.append(idx)
 
     def get_span_for_leaf_node(self, sentence):
         if len(self.leaf_nodes) != len(sentence):
@@ -254,6 +259,120 @@ def getDepTree1(tokens, edges_list):
 
     return nodes_dict
 
+def getPathToRoot(token, token_idx, tree):
+    tmp = token
+    # path_to_root = [token_idx]
+    path_to_root = []
+    while tmp.parent != -1:
+        path_to_root.append(tmp.parent)
+        tmp = tree.nodes[tmp.parent]
+    return path_to_root
+
+def getLowestCommonAncestor(token_i_path, token_j_path):
+    lca = -1
+    for i, node_idx_i in enumerate(token_i_path):
+        for j, node_idx_j in enumerate(token_j_path):
+            if node_idx_i == node_idx_j:
+                lca = node_idx_i
+                break
+        if lca != -1:
+            break
+    assert lca != -1
+    return i, j, lca
+
+def getTreeFeature_Path(token_i, token_i_idx, token_j, token_j_idx, tree):
+    token_i_path = getPathToRoot(token_i, token_i_idx, tree)
+    token_j_path = getPathToRoot(token_j, token_j_idx, tree)
+    i, j, lca = getLowestCommonAncestor(token_i_path, token_j_path)
+
+    ret = []
+    ii = 0
+    while ii < i:
+        ret.append(tree.nodes[token_i_path[ii]].cat)
+        ii += 1
+    ret.append(tree.nodes[lca].cat)
+    jj = j - 1
+    while jj >= 0:
+        ret.append(tree.nodes[token_j_path[jj]].cat)
+        jj -= 1
+    ret = '-'.join(ret)
+    return ret
+
+def getTreeFeature_LcaRootSyntax(token_i, token_i_idx, token_j, token_j_idx, tree):
+    token_i_path = getPathToRoot(token_i, token_i_idx, tree)
+    token_j_path = getPathToRoot(token_j, token_j_idx, tree)
+    i, j, lca = getLowestCommonAncestor(token_i_path, token_j_path)
+
+    return tree.nodes[lca].cat
+
+def getTreeFeature_LcaLeftDepth(token_i, token_i_idx, token_j, token_j_idx, tree):
+    token_i_path = getPathToRoot(token_i, token_i_idx, tree)
+    token_j_path = getPathToRoot(token_j, token_j_idx, tree)
+    i, j, lca = getLowestCommonAncestor(token_i_path, token_j_path)
+
+    return str(i)
+
+def getTreeFeature_LcaRightDepth(token_i, token_i_idx, token_j, token_j_idx, tree):
+    token_i_path = getPathToRoot(token_i, token_i_idx, tree)
+    token_j_path = getPathToRoot(token_j, token_j_idx, tree)
+    i, j, lca = getLowestCommonAncestor(token_i_path, token_j_path)
+
+    return str(j)
+
+# i is the idx in tree.leaf_nodes, while token_i_idx is the idx in tree.nodes
+def getTreeFeature_LcaMatch(token_i_leaf_idx, token_i, token_i_idx, token_j_leaf_idx, token_j, token_j_idx, tree):
+    token_i_path = getPathToRoot(token_i, token_i_idx, tree)
+    token_j_path = getPathToRoot(token_j, token_j_idx, tree)
+    i, j, lca = getLowestCommonAncestor(token_i_path, token_j_path)
+
+    span_left_token_idx = tree.nodes[lca].span[0]
+    span_right_token_idx = tree.nodes[lca].span[1]
+
+    left_leaf_idx = token_j_leaf_idx if token_i_leaf_idx > token_j_leaf_idx else token_i_leaf_idx
+    right_leaf_idx = token_i_leaf_idx if token_i_leaf_idx > token_j_leaf_idx else token_j_leaf_idx
+
+    if span_left_token_idx == left_leaf_idx and span_right_token_idx == right_leaf_idx:
+        return 'm' # match
+    elif span_left_token_idx == left_leaf_idx and span_right_token_idx != right_leaf_idx:
+        return 'lm' # left match
+    elif span_left_token_idx != left_leaf_idx and span_right_token_idx == right_leaf_idx:
+        return 'rm' # right match
+    else:
+        return 'nm' # not match
+
+def getTreeFeatures(tree):
+    tree_features = {}
+    if not tree.match:
+        return tree_features
+    # list_list, denotes the relation between token_i and token_j
+    # e.g., given a sentence t1 t2 t3, return [[t1_t1, t1_t2, t1_t3],[t2_t1, t2_t2, t2_t3],[t3 ...]]
+    tree_features['F1'] = []
+    tree_features['F2'] = []
+    tree_features['F3'] = []
+    tree_features['F4'] = []
+    tree_features['F5'] = []
+    for i, (token_i, token_i_idx) in enumerate(zip(tree.leaf_nodes, tree.leaf_nodes_idx)):
+        f1, f2, f3, f4, f5 = [], [], [], [], []
+        for j, (token_j, token_j_idx) in enumerate(zip(tree.leaf_nodes, tree.leaf_nodes_idx)):
+            if i == j:
+                f1.append('self')
+                f2.append('self')
+                f3.append('self')
+                f4.append('self')
+                f5.append('self')
+            else:
+                f1.append(getTreeFeature_Path(token_i, token_i_idx, token_j, token_j_idx, tree))
+                f2.append(getTreeFeature_LcaRootSyntax(token_i, token_i_idx, token_j, token_j_idx, tree)) # lowest common ancestor
+                f3.append(getTreeFeature_LcaLeftDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
+                f4.append(getTreeFeature_LcaRightDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
+                f5.append(getTreeFeature_LcaMatch(i, token_i, token_i_idx, j, token_j, token_j_idx, tree))
+        tree_features['F1'].append(f1)
+        tree_features['F2'].append(f2)
+        tree_features['F3'].append(f3)
+        tree_features['F4'].append(f4)
+        tree_features['F5'].append(f5)
+
+    return tree_features
 
 
 def hasDiscontiguousEntity(instance):
@@ -350,6 +469,8 @@ def transfer_into_dygie(instances, output_file):
         doc['trees'] = []
         if use_dep:
             doc['dep'] = []
+        if use_tree_feature:
+            doc['tf'] = []
         try:
             nlp_res_raw = nlp.annotate(' '.join(instance['tokens']), properties={'annotators': 'tokenize,ssplit,pos,parse'})
             nlp_res = json.loads(nlp_res_raw)
@@ -363,6 +484,8 @@ def transfer_into_dygie(instances, output_file):
                 stats_treebank['sent_notree'] += 1
                 if use_dep:
                     doc['dep'].append({})
+                if use_tree_feature:
+                    doc['tf'].append({})
                 fp.write(json.dumps(doc) + "\n")
                 continue
 
@@ -376,6 +499,8 @@ def transfer_into_dygie(instances, output_file):
                 stats_treebank['sent_notree'] += 1
                 if use_dep:
                     doc['dep'].append({})
+                if use_tree_feature:
+                    doc['tf'].append({})
                 fp.write(json.dumps(doc) + "\n")
                 continue
 
@@ -403,6 +528,9 @@ def transfer_into_dygie(instances, output_file):
             # doc['dep'].append(dep_tree.to_json())
             dep_nodes = getDepTree1(nlp_res['sentences'][0]['tokens'], nlp_res['sentences'][0]['basicDependencies'])
             doc['dep'].append(dep_nodes)
+        if use_tree_feature:
+            tree_features = getTreeFeatures(tree)
+            doc['tf'].append(tree_features)
 
         fp.write(json.dumps(doc)+"\n")
 

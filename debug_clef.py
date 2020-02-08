@@ -19,7 +19,7 @@ from allennlp.commands import main
 
 experiment_name="clef"
 # data_root="./data/clef/processed-data/json"
-data_root="./data/clef/processed-data/json-dep"
+data_root="./data/clef/processed-data/json-tf"
 config_file="./training_config/clef_working_example_debug.jsonnet"
 cuda_device=-1
 

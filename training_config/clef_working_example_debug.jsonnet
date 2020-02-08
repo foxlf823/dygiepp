@@ -16,7 +16,7 @@ local params = {
   target: "rel",
 
   // If debugging, don't load expensive embedding files.
-  debug: true,
+  debug: false,
 
   // Specifies the token-level features that will be created.
   use_glove: false,
@@ -115,7 +115,14 @@ local params = {
   tree_feature_first: true,
   // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12, clinicalbert_biobert_disch_100000
   bert_name: "clinicalbert_biobert_disch_100000",
-  use_dep: true,
+  // dep-based GCN
+  use_dep: false,
+  // tree feature, transformer
+  use_tree_feature: true,
+  tft_layers: 1,
+  tft_head: 8,
+  tft_kv: 50,
+  tft_dropout: 0.1,
 };
 
 ////////////////////

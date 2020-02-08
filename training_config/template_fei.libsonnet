@@ -430,6 +430,7 @@ function(p) {
     use_syntax: p.use_syntax,
     tree_feature_first: p.tree_feature_first,
     tree_span_filter: p.tree_span_filter,
+    use_tree_feature: p.use_tree_feature,
     modules: {
       ner: {
         mention_feedforward: make_feedforward(span_emb_dim),
@@ -473,6 +474,7 @@ function(p) {
     tree_feature_first: p.tree_feature_first,
     tree_span_filter: p.tree_span_filter,
     use_dep: p.use_dep,
+    use_tree_feature: p.use_tree_feature,
     modules: {
       ner: {
         mention_feedforward: make_feedforward(span_emb_dim),
@@ -497,12 +499,20 @@ function(p) {
         tree_children: p.tree_children,
       },
       dep_tree: {
-        //span_emb_dim: span_emb_dim,
         span_emb_dim: context_layer_output_size,
         tree_prop: p.tree_prop,
         initializer: module_initializer,
         tree_dropout: p.tree_dropout,
         tree_children: p.tree_children,
+      },
+      tf_transformer: {
+        d_input: context_layer_output_size,
+        d_inner: 4*context_layer_output_size,
+        n_layers: p.tft_layers,
+        n_head: p.tft_head,
+        d_k: p.tft_kv,
+        d_v: p.tft_kv,
+        dropout: p.tft_dropout,
       },
     },
     // feili
