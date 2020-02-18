@@ -65,7 +65,8 @@ def cluster_dict_sentence(cluster_dict: Dict[Tuple[int, int], int], sentence_sta
     return cluster_sent, new_cluster_dict
 
 
-def format_label_fields(ner: List[List[Union[int,str]]],
+def format_label_fields(sentence: List[str],
+                        ner: List[List[Union[int,str]]],
                         relations: List[List[Union[int,str]]],
                         cluster_tmp: Dict[Tuple[int,int], int],
                         events: List[List[Union[int,str]]],
@@ -73,7 +74,8 @@ def format_label_fields(ner: List[List[Union[int,str]]],
                         tree: Dict[str, Any],
                         tree_match_filter: bool,
                         dep_tree: Dict[str, Any],
-                        tf: Dict[str, Any],) -> Tuple[Dict[Tuple[int,int],str],
+                        tf: Dict[str, Any],
+                        tree_feature_dict: List[str]) -> Tuple[Dict[Tuple[int,int],str],
                                                       Dict[Tuple[Tuple[int,int],Tuple[int,int]],str],
                                                       Dict[Tuple[int,int],int], Dict[Tuple[int, int],str],
                                                     Dict[Tuple[int, int],List[Tuple[int, int]]],
@@ -170,17 +172,32 @@ def format_label_fields(ner: List[List[Union[int,str]]],
     else:
         dep_children_dict = MissingDict("")
 
-    tf_dict = {}
-    for k in ['F1', 'F2', 'F3', 'F4', 'F5']:
-        if k in tf:
-            tf_dict[k] = MissingDict("",
-                                    (
-                                        ((i, j), feature)
-                                        for i, token_i_features in enumerate(tf[k]) for j, feature in enumerate(token_i_features)
-                                    )
-                                    )
-        else:
-            tf_dict[k] = MissingDict("")
+    # tf_dict = {}
+    # for k in ['F1', 'F2', 'F3', 'F4', 'F5']:
+    #     if k in tf:
+    #         tf_dict[k] = MissingDict("",
+    #                                 (
+    #                                     ((i, j), feature)
+    #                                     for i, token_i_features in enumerate(tf[k]) for j, feature in enumerate(token_i_features)
+    #                                 )
+    #                                 )
+    #     else:
+    #         tf_dict[k] = MissingDict("")
+
+    if len(tree_feature_dict) != 0:
+        missingdict_values = []
+        for i, _ in enumerate(sentence):
+            for j, _ in enumerate(sentence):
+                feature = ""
+                for k in tree_feature_dict:
+                    if k in tf:
+                        feature += "#"+tf[k][i][j]
+                missingdict_values.append(((i, j), feature))
+
+        tf_dict = MissingDict("", missingdict_values)
+
+    else:
+        tf_dict = MissingDict("")
 
     return ner_dict, relation_dict, cluster_dict, trigger_dict, arg_dict, syntax_dict, children_dict, dep_children_dict, tf_dict
 
@@ -209,7 +226,8 @@ class IEJsonReader(DatasetReader):
                  lazy: bool = False,
                  label_scheme: str = 'flat',
                  tree_span_filter: bool = False,
-                 tree_match_filter: bool = False) -> None:
+                 tree_match_filter: bool = False,
+                 tree_feature_dict: List[str] = None) -> None:
         super().__init__(lazy)
         assert (context_width % 2 == 1) and (context_width > 0)
         self.k = int( (context_width - 1) / 2)
@@ -222,6 +240,7 @@ class IEJsonReader(DatasetReader):
         self._label_scheme = label_scheme
         self._tree_span_filter = tree_span_filter
         self._tree_match_filter = tree_match_filter
+        self._tree_feature_dict = tree_feature_dict
 
     @overrides
     def _read(self, file_path: str):
@@ -279,7 +298,7 @@ class IEJsonReader(DatasetReader):
                 # Make span indices relative to sentence instead of document.
                 ner_dict, relation_dict, cluster_dict, trigger_dict, argument_dict, syntax_dict, children_dict, dep_children_dict, \
                 tf_dict\
-                    = format_label_fields(ner, relations, cluster_tmp, events, sentence_start, tree, self._tree_match_filter, dep, tf)
+                    = format_label_fields(sentence, ner, relations, cluster_tmp, events, sentence_start, tree, self._tree_match_filter, dep, tf, self._tree_feature_dict)
                 sentence_start += len(sentence)
                 instance = self.text_to_instance(
                     sentence, ner_dict, relation_dict, cluster_dict, trigger_dict, argument_dict,
@@ -425,22 +444,29 @@ class IEJsonReader(DatasetReader):
         candidate_indices = [(i, j) for i in range(n_tokens) for j in range(n_tokens)]
         dep_adjs = []
         dep_adjs_indices = []
-        tf_indices = {}
-        tf_features = {}
-        for k, v in tf_dict.items():
-            tf_indices[k] = []
-            tf_features[k] = []
+        # tf_indices = {}
+        # tf_features = {}
+        # for k, v in tf_dict.items():
+        #     tf_indices[k] = []
+        #     tf_features[k] = []
+        tf_indices = []
+        tf_features = []
         for token_pair in candidate_indices:
             dep_adj_label = dep_children_dict[token_pair]
             if dep_adj_label:
                 dep_adjs_indices.append(token_pair)
                 dep_adjs.append(dep_adj_label)
 
-            for k,v in tf_dict.items():
-                feature = tf_dict[k][token_pair]
-                if feature:
-                    tf_indices[k].append(token_pair)
-                    tf_features[k].append(feature)
+            # for k,v in tf_dict.items():
+            #     feature = tf_dict[k][token_pair]
+            #     if feature:
+            #         tf_indices[k].append(token_pair)
+            #         tf_features[k].append(feature)
+
+            feature = tf_dict[token_pair]
+            if feature:
+                tf_indices.append(token_pair)
+                tf_features.append(feature)
 
 
         ner_label_field = SequenceLabelField(span_ner_labels, span_field,
@@ -496,16 +522,21 @@ class IEJsonReader(DatasetReader):
         dep_span_children_field = AdjacencyField(
             indices=dep_adjs_indices, sequence_field=text_field, labels=dep_adjs,
             label_namespace="dep_adj_labels")
-        tf_f1_field = AdjacencyField(indices=tf_indices['F1'], sequence_field=text_field, labels=tf_features['F1'],
-            label_namespace="tf_f1_labels")
-        tf_f2_field = AdjacencyField(indices=tf_indices['F2'], sequence_field=text_field, labels=tf_features['F2'],
-                                     label_namespace="tf_f2_labels")
-        tf_f3_field = AdjacencyField(indices=tf_indices['F3'], sequence_field=text_field, labels=tf_features['F3'],
-                                     label_namespace="tf_f3_labels")
-        tf_f4_field = AdjacencyField(indices=tf_indices['F4'], sequence_field=text_field, labels=tf_features['F4'],
-                                     label_namespace="tf_f4_labels")
-        tf_f5_field = AdjacencyField(indices=tf_indices['F5'], sequence_field=text_field, labels=tf_features['F5'],
-                                     label_namespace="tf_f5_labels")
+
+        # tf_f1_field = AdjacencyField(indices=tf_indices['F1'], sequence_field=text_field, labels=tf_features['F1'],
+        #     label_namespace="tf_f1_labels")
+        # tf_f2_field = AdjacencyField(indices=tf_indices['F2'], sequence_field=text_field, labels=tf_features['F2'],
+        #                              label_namespace="tf_f2_labels")
+        # tf_f3_field = AdjacencyField(indices=tf_indices['F3'], sequence_field=text_field, labels=tf_features['F3'],
+        #                              label_namespace="tf_f3_labels")
+        # tf_f4_field = AdjacencyField(indices=tf_indices['F4'], sequence_field=text_field, labels=tf_features['F4'],
+        #                              label_namespace="tf_f4_labels")
+        # tf_f5_field = AdjacencyField(indices=tf_indices['F5'], sequence_field=text_field, labels=tf_features['F5'],
+        #                              label_namespace="tf_f5_labels")
+
+        tf_field = AdjacencyField(indices=tf_indices, sequence_field=text_field, labels=tf_features,
+                                     label_namespace="tf_labels")
+
 
         # Pull it  all together.
         fields = dict(text=text_field_with_context,
@@ -522,11 +553,12 @@ class IEJsonReader(DatasetReader):
                       span_children=span_children_field,
                       span_tree_labels=span_tree_field,
                       dep_span_children=dep_span_children_field,
-                      tf_f1 = tf_f1_field,
-                      tf_f2 = tf_f2_field,
-                      tf_f3 = tf_f3_field,
-                      tf_f4 = tf_f4_field,
-                      tf_f5 = tf_f5_field)
+                      # tf_f1 = tf_f1_field,
+                      # tf_f2 = tf_f2_field,
+                      # tf_f3 = tf_f3_field,
+                      # tf_f4 = tf_f4_field,
+                      # tf_f5 = tf_f5_field)
+                      tf=tf_field)
                       # span_children_syntax=span_children_syntax_field)
 
         return Instance(fields)

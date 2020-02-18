@@ -20,6 +20,8 @@ from dygie.models.ner import NERTagger
 from dygie.models.tree import Tree
 
 from allennlp.modules.token_embedders.embedding import Embedding
+from dygie.models.transformer import MyTransformer
+from dygie.models.tree_feature import TreeFeature
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -61,6 +63,7 @@ class TreeNer(Model):
                  loss_weights: Dict[str, int],
                  use_tree: bool,
                  use_syntax: bool,
+                 use_tree_feature: bool,
                  tree_feature_first: bool,
                  tree_span_filter: bool = False,
                  lexical_dropout: float = 0.2,
@@ -120,6 +123,18 @@ class TreeNer(Model):
             if self.tree_span_filter:
                 self._tree_span_embedding = Embedding(vocab.get_vocab_size('span_tree_labels'), feature_size)
 
+        self.use_tree_feature = use_tree_feature
+        if self.use_tree_feature:
+            # self._tf_f1_embedding = Embedding(vocab.get_vocab_size('tf_f1_labels'), 1)
+            # self._tf_f2_embedding = Embedding(vocab.get_vocab_size('tf_f2_labels'), 1)
+            # self._tf_f3_embedding = Embedding(vocab.get_vocab_size('tf_f3_labels'), 1)
+            # self._tf_f4_embedding = Embedding(vocab.get_vocab_size('tf_f4_labels'), 1)
+            # self._tf_f5_embedding = Embedding(vocab.get_vocab_size('tf_f5_labels'), 1)
+            # self._tf_transformer = MyTransformer.from_params(vocab=vocab,
+            #                                   params=modules.pop("tf_transformer"))
+            self._tf_layer = TreeFeature.from_params(vocab=vocab,
+                                               params=modules.pop("tf_layer"))
+
         initializer(self)
 
     @overrides
@@ -138,6 +153,8 @@ class TreeNer(Model):
                 span_children,
                 span_tree_labels,
                 dep_span_children,
+                # tf_f1, tf_f2, tf_f3, tf_f4, tf_f5,
+                tf,
                 # span_children_syntax
                 ):
 
@@ -160,6 +177,23 @@ class TreeNer(Model):
         # Shape: (batch_size, max_sentence_length, encoding_dim)
         contextualized_embeddings = self._lstm_dropout(self._context_layer(text_embeddings, text_mask))
         assert spans.max() < contextualized_embeddings.shape[1]
+
+        if self.use_tree_feature:
+            # tf_mask = (tf_f1[:, :, :] >= 0).float()
+            # tf_f1_features = self._tf_f1_embedding((tf_f1*tf_mask).long()) * tf_mask.unsqueeze(-1)
+            # tf_f2_features = self._tf_f2_embedding((tf_f2*tf_mask).long()) * tf_mask.unsqueeze(-1)
+            # tf_f3_features = self._tf_f3_embedding((tf_f3*tf_mask).long()) * tf_mask.unsqueeze(-1)
+            # tf_f4_features = self._tf_f4_embedding((tf_f4*tf_mask).long()) * tf_mask.unsqueeze(-1)
+            # tf_f5_features = self._tf_f5_embedding((tf_f5*tf_mask).long()) * tf_mask.unsqueeze(-1)
+            # self._tf_transformer(contextualized_embeddings, text_mask, tf_f1_features, tf_f2_features, tf_f3_features,
+            #                      tf_f4_features, tf_f5_features, tf_mask)
+
+            # contextualized_embeddings = self._tf_transformer(contextualized_embeddings, text_mask, tf_f1, tf_f2, tf_f3,
+            #                      tf_f4, tf_f5)
+
+            # contextualized_embeddings = self._tf_layer(tf, contextualized_embeddings, text_mask)
+            tree_feature_embeddings = self._tf_layer(tf, contextualized_embeddings, text_mask)
+            contextualized_embeddings = torch.cat([contextualized_embeddings, tree_feature_embeddings], dim=-1)
 
         # Shape: (batch_size, num_spans)
         span_mask = (spans[:, :, 0] >= 0).float()

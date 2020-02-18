@@ -77,7 +77,12 @@ function(p) {
   //  (if p.tree_span_filter then p.feature_size else 0) +
   //  2 * context_layer_output_size + p.feature_size
   //),
-  local endpoint_span_emb_dim = 2 * context_layer_output_size + p.feature_size,
+  // local endpoint_span_emb_dim = 2 * context_layer_output_size + p.feature_size,
+  local endpoint_span_emb_dim = if p.use_tree_feature then
+                                ( if p.tree_feature_usage == 'add' then 2 * context_layer_output_size + p.feature_size
+                                    else 2 * (context_layer_output_size+p.tree_feature_dim) + p.feature_size
+                                )
+                                else 2 * context_layer_output_size + p.feature_size,
   local tree_span_emb_dim = (if p.tree_feature_first then
     (
       (if p.use_syntax then p.feature_size else 0) +
@@ -452,6 +457,22 @@ function(p) {
         tree_dropout: p.tree_dropout,
         tree_children: p.tree_children,
       },
+      tf_transformer: {
+        d_input: context_layer_output_size,
+        d_inner: 4*context_layer_output_size,
+        n_layers: p.tft_layers,
+        n_head: p.tft_head,
+        d_k: p.tft_kv,
+        d_v: p.tft_kv,
+        dropout: p.tft_dropout,
+      },
+      tf_layer: {
+        input_dim: context_layer_output_size,
+        feature_dim: p.tree_feature_dim,
+        layer: p.tree_feature_layer,
+        dropout: p.tree_feature_dropout,
+        initializer: module_initializer,
+      },
     } ,
     // feili
     span_extractor: span_extractor
@@ -475,6 +496,8 @@ function(p) {
     tree_span_filter: p.tree_span_filter,
     use_dep: p.use_dep,
     use_tree_feature: p.use_tree_feature,
+    tree_feature_usage: p.tree_feature_usage,
+    tree_feature_arch: p.tree_feature_arch,
     modules: {
       ner: {
         mention_feedforward: make_feedforward(span_emb_dim),
@@ -513,6 +536,16 @@ function(p) {
         d_k: p.tft_kv,
         d_v: p.tft_kv,
         dropout: p.tft_dropout,
+        tree_feature_usage: p.tree_feature_usage,
+        feature_dim: p.tree_feature_dim,
+      },
+      tf_layer: {
+        input_dim: context_layer_output_size,
+        feature_dim: p.tree_feature_dim,
+        layer: p.tree_feature_layer,
+        dropout: p.tree_feature_dropout,
+        initializer: module_initializer,
+        tree_feature_usage: p.tree_feature_usage,
       },
     },
     // feili
@@ -538,6 +571,7 @@ function(p) {
     label_scheme: p.label_scheme,
     tree_span_filter: p.tree_span_filter,
     tree_match_filter: p.tree_match_filter,
+    tree_feature_dict: p.tree_feature_dict,
   },
   train_data_path: std.extVar("ie_train_data_path"),
   validation_data_path: std.extVar("ie_dev_data_path"),

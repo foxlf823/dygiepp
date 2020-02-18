@@ -109,7 +109,7 @@ local params = {
   // use tree info or not
   use_tree: false,
   tree_prop: 1,
-  use_syntax: true,
+  use_syntax: false,
   tree_dropout: 0,
   // pooling, conv, attention, rnn
   tree_children: 'attention',
@@ -118,6 +118,16 @@ local params = {
   tree_feature_first: true,
   // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12
   bert_name: "multi_cased_L-12_H-768_A-12",
+  // tree feature, transformer
+  use_tree_feature: true,
+  tft_layers: 1,
+  tft_head: 12,
+  tft_kv: 64,
+  tft_dropout: 0.1,
+  tree_feature_dim: 64,
+  tree_feature_layer: 1,
+  tree_feature_dropout: 0.1,
+  tree_feature_dict: ['F1'],
 };
 
 ////////////////////

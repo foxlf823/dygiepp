@@ -7,6 +7,7 @@ from allennlp.models.model import Model
 from allennlp.data import Vocabulary
 from allennlp.nn import util, InitializerApplicator, RegularizerApplicator
 from typing import Any, Dict, List, Optional, Tuple
+from allennlp.modules import TimeDistributed
 
 class ScaledDotProductAttention(nn.Module):
     ''' Scaled Dot-Product Attention '''
@@ -17,11 +18,12 @@ class ScaledDotProductAttention(nn.Module):
         self.dropout = nn.Dropout(attn_dropout)
         self.softmax = nn.Softmax(dim=2)
 
-    def forward(self, q, k, v, mask, tf_f1_features, tf_f2_features, tf_f3_features,
-                tf_f4_features, tf_f5_features):
-
-        attn = torch.bmm(q, k.transpose(1, 2)) + tf_f1_features + tf_f2_features + tf_f3_features + tf_f4_features + \
-                                                tf_f5_features
+    # def forward(self, q, k, v, mask, tf_f1_features, tf_f2_features, tf_f3_features,
+    #             tf_f4_features, tf_f5_features):
+    def forward(self, q, k, v, mask, tf_features):
+        # attn = torch.bmm(q, k.transpose(1, 2)) + tf_f1_features + tf_f2_features + tf_f3_features + tf_f4_features + \
+        #                                         tf_f5_features
+        attn = torch.bmm(q, k.transpose(1, 2)) + tf_features
         attn = attn / self.temperature
 
         if mask is not None:
@@ -50,11 +52,12 @@ class MultiHeadAttention(nn.Module):
         nn.init.normal_(self.w_ks.weight, mean=0, std=np.sqrt(2.0 / (d_model + d_k)))
         nn.init.normal_(self.w_vs.weight, mean=0, std=np.sqrt(2.0 / (d_model + d_v)))
 
-        self._tf_f1_embedding = nn.Embedding(vocab.get_vocab_size('tf_f1_labels'), n_head)
-        self._tf_f2_embedding = nn.Embedding(vocab.get_vocab_size('tf_f2_labels'), n_head)
-        self._tf_f3_embedding = nn.Embedding(vocab.get_vocab_size('tf_f3_labels'), n_head)
-        self._tf_f4_embedding = nn.Embedding(vocab.get_vocab_size('tf_f4_labels'), n_head)
-        self._tf_f5_embedding = nn.Embedding(vocab.get_vocab_size('tf_f5_labels'), n_head)
+        # self._tf_f1_embedding = nn.Embedding(vocab.get_vocab_size('tf_f1_labels'), n_head)
+        # self._tf_f2_embedding = nn.Embedding(vocab.get_vocab_size('tf_f2_labels'), n_head)
+        # self._tf_f3_embedding = nn.Embedding(vocab.get_vocab_size('tf_f3_labels'), n_head)
+        # self._tf_f4_embedding = nn.Embedding(vocab.get_vocab_size('tf_f4_labels'), n_head)
+        # self._tf_f5_embedding = nn.Embedding(vocab.get_vocab_size('tf_f5_labels'), n_head)
+        self._tf_embedding = nn.Embedding(vocab.get_vocab_size('tf_labels'), n_head)
 
         self.attention = ScaledDotProductAttention(temperature=np.power(d_k, 0.5))
         self.layer_norm = nn.LayerNorm(d_model)
@@ -67,8 +70,9 @@ class MultiHeadAttention(nn.Module):
 
     # def forward(self, q, k, v, mask, tf_f1_features, tf_f2_features, tf_f3_features,
     #             tf_f4_features, tf_f5_features, tf_mask):
-    def forward(self, q, k, v, mask, tf_f1, tf_f2, tf_f3,
-                tf_f4, tf_f5):
+    # def forward(self, q, k, v, mask, tf_f1, tf_f2, tf_f3,
+    #             tf_f4, tf_f5):
+    def forward(self, q, k, v, mask, tf):
 
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
 
@@ -88,22 +92,28 @@ class MultiHeadAttention(nn.Module):
 
         mask = mask.repeat(n_head, 1, 1) # (n*b) x .. x ..
 
-        tf_mask = (tf_f1[:, :, :] >= 0).float()
-        tf_f1_features = self._tf_f1_embedding((tf_f1 * tf_mask).long()) * tf_mask.unsqueeze(-1)
-        tf_f2_features = self._tf_f2_embedding((tf_f2 * tf_mask).long()) * tf_mask.unsqueeze(-1)
-        tf_f3_features = self._tf_f3_embedding((tf_f3 * tf_mask).long()) * tf_mask.unsqueeze(-1)
-        tf_f4_features = self._tf_f4_embedding((tf_f4 * tf_mask).long()) * tf_mask.unsqueeze(-1)
-        tf_f5_features = self._tf_f5_embedding((tf_f5 * tf_mask).long()) * tf_mask.unsqueeze(-1)
+        # tf_mask = (tf_f1[:, :, :] >= 0).float()
+        # tf_f1_features = self._tf_f1_embedding((tf_f1 * tf_mask).long()) * tf_mask.unsqueeze(-1)
+        # tf_f2_features = self._tf_f2_embedding((tf_f2 * tf_mask).long()) * tf_mask.unsqueeze(-1)
+        # tf_f3_features = self._tf_f3_embedding((tf_f3 * tf_mask).long()) * tf_mask.unsqueeze(-1)
+        # tf_f4_features = self._tf_f4_embedding((tf_f4 * tf_mask).long()) * tf_mask.unsqueeze(-1)
+        # tf_f5_features = self._tf_f5_embedding((tf_f5 * tf_mask).long()) * tf_mask.unsqueeze(-1)
+        tf_mask = (tf[:, :, :] >= 0).float()
+        tf_features = self._tf_embedding((tf * tf_mask).long()) * tf_mask.unsqueeze(-1)
 
         # tf_mask = tf_mask.repeat(n_head, 1, 1)
-        tf_f1_features = tf_f1_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
-        tf_f2_features = tf_f2_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
-        tf_f3_features = tf_f3_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
-        tf_f4_features = tf_f4_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
-        tf_f5_features = tf_f5_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
+        # tf_f1_features = tf_f1_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
+        # tf_f2_features = tf_f2_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
+        # tf_f3_features = tf_f3_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
+        # tf_f4_features = tf_f4_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
+        # tf_f5_features = tf_f5_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
 
-        output, attn = self.attention(q, k, v, mask, tf_f1_features, tf_f2_features, tf_f3_features,
-                tf_f4_features, tf_f5_features)
+        tf_features = tf_features.permute(3, 0, 1, 2).contiguous().view(-1, len_q, len_q)
+
+        # output, attn = self.attention(q, k, v, mask, tf_f1_features, tf_f2_features, tf_f3_features,
+        #         tf_f4_features, tf_f5_features)
+        output, attn = self.attention(q, k, v, mask, tf_features)
+
 
         output = output.view(n_head, sz_b, len_q, d_v)
         output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_q, -1) # b x lq x (n*dv)
@@ -142,11 +152,14 @@ class EncoderLayer(nn.Module):
 
     # def forward(self, enc_input, non_pad_mask, slf_attn_mask, tf_f1_features, tf_f2_features, tf_f3_features,
     #             tf_f4_features, tf_f5_features, tf_mask):
-    def forward(self, enc_input, non_pad_mask, slf_attn_mask, tf_f1, tf_f2, tf_f3,
-                tf_f4, tf_f5):
+    # def forward(self, enc_input, non_pad_mask, slf_attn_mask, tf_f1, tf_f2, tf_f3,
+    #             tf_f4, tf_f5):
+    def forward(self, enc_input, non_pad_mask, slf_attn_mask, tf):
+        # enc_output, enc_slf_attn = self.slf_attn(
+        #     enc_input, enc_input, enc_input, slf_attn_mask, tf_f1, tf_f2, tf_f3,
+        #         tf_f4, tf_f5)
         enc_output, enc_slf_attn = self.slf_attn(
-            enc_input, enc_input, enc_input, slf_attn_mask, tf_f1, tf_f2, tf_f3,
-                tf_f4, tf_f5)
+            enc_input, enc_input, enc_input, slf_attn_mask, tf)
         enc_output *= non_pad_mask
 
         enc_output = self.pos_ffn(enc_output)
@@ -165,6 +178,8 @@ class MyTransformer(Model):
                  d_k,
                  d_v,
                  dropout,
+                 tree_feature_usage,
+                 feature_dim,
                  regularizer: Optional[RegularizerApplicator] = None) -> None:
         super(MyTransformer, self).__init__(vocab, regularizer)
 
@@ -172,9 +187,17 @@ class MyTransformer(Model):
             EncoderLayer(vocab, d_input, d_inner, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
 
+        self._tree_feature_usage = tree_feature_usage
+        self._feature_dim = feature_dim
+        if self._tree_feature_usage == 'concat':
+            _W = torch.nn.Linear(d_input, self._feature_dim, bias=False)
+            torch.nn.init.xavier_normal_(_W.weight)
+            self._A_network = TimeDistributed(_W)
+
     # def forward(self, contextualized_embeddings, text_mask, tf_f1_features, tf_f2_features, tf_f3_features,
     #                              tf_f4_features, tf_f5_features, tf_mask):
-    def forward(self, contextualized_embeddings, text_mask, tf_f1, tf_f2, tf_f3, tf_f4, tf_f5):
+    # def forward(self, contextualized_embeddings, text_mask, tf_f1, tf_f2, tf_f3, tf_f4, tf_f5):
+    def forward(self, tf, contextualized_embeddings, text_mask):
 
         # -- Prepare masks
         slf_attn_mask = text_mask == 0
@@ -184,12 +207,22 @@ class MyTransformer(Model):
 
         enc_output = contextualized_embeddings
 
+        # for enc_layer in self.layer_stack:
+        #     enc_output, _ = enc_layer(
+        #         enc_output,
+        #         non_pad_mask,
+        #         slf_attn_mask,
+        #         tf_f1, tf_f2, tf_f3,
+        #         tf_f4, tf_f5)
+
         for enc_layer in self.layer_stack:
             enc_output, _ = enc_layer(
                 enc_output,
                 non_pad_mask,
                 slf_attn_mask,
-                tf_f1, tf_f2, tf_f3,
-                tf_f4, tf_f5)
+                tf)
 
+        if self._tree_feature_usage == 'concat':
+            enc_output = self._A_network(enc_output)
+            enc_output = enc_output * text_mask.unsqueeze(-1)
         return enc_output

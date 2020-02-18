@@ -24,6 +24,7 @@ from allennlp.modules.token_embedders.embedding import Embedding
 from dygie.models.events import EventExtractor
 from dygie.training.joint_metrics import JointMetrics
 from dygie.models.transformer import MyTransformer
+from dygie.models.tree_feature import TreeFeature
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -68,6 +69,8 @@ class DisNER(Model):
                  use_dep: bool,
                  use_tree_feature: bool,
                  tree_feature_first: bool,
+                 tree_feature_usage: str,
+                 tree_feature_arch: str,
                  tree_span_filter: bool = False,
                  lexical_dropout: float = 0.2,
                  lstm_dropout: float = 0.4,
@@ -147,8 +150,15 @@ class DisNER(Model):
             # self._tf_f3_embedding = Embedding(vocab.get_vocab_size('tf_f3_labels'), 1)
             # self._tf_f4_embedding = Embedding(vocab.get_vocab_size('tf_f4_labels'), 1)
             # self._tf_f5_embedding = Embedding(vocab.get_vocab_size('tf_f5_labels'), 1)
-            self._tf_transformer = MyTransformer.from_params(vocab=vocab,
-                                              params=modules.pop("tf_transformer"))
+
+            self._tree_feature_arch = tree_feature_arch
+            if self._tree_feature_arch == 'transformer':
+                self._tf_layer = MyTransformer.from_params(vocab=vocab,
+                                                  params=modules.pop("tf_transformer"))
+            else:
+                self._tf_layer = TreeFeature.from_params(vocab=vocab,
+                                                         params=modules.pop("tf_layer"))
+            self._tree_feature_usage = tree_feature_usage
 
         initializer(self)
 
@@ -168,7 +178,8 @@ class DisNER(Model):
                 span_children,
                 span_tree_labels,
                 dep_span_children,
-                tf_f1, tf_f2, tf_f3, tf_f4, tf_f5,
+                # tf_f1, tf_f2, tf_f3, tf_f4, tf_f5,
+                tf,
                 # span_children_syntax
                 ):
         """
@@ -213,8 +224,14 @@ class DisNER(Model):
             # self._tf_transformer(contextualized_embeddings, text_mask, tf_f1_features, tf_f2_features, tf_f3_features,
             #                      tf_f4_features, tf_f5_features, tf_mask)
 
-            contextualized_embeddings = self._tf_transformer(contextualized_embeddings, text_mask, tf_f1, tf_f2, tf_f3,
-                                 tf_f4, tf_f5)
+            # contextualized_embeddings = self._tf_transformer(contextualized_embeddings, text_mask, tf_f1, tf_f2, tf_f3,
+            #                      tf_f4, tf_f5)
+
+            if self._tree_feature_usage == 'add':
+                contextualized_embeddings = self._tf_layer(tf, contextualized_embeddings, text_mask)
+            else:
+                tree_feature_embeddings = self._tf_layer(tf, contextualized_embeddings, text_mask)
+                contextualized_embeddings = torch.cat([contextualized_embeddings, tree_feature_embeddings], dim=-1)
 
 
         # Shape: (batch_size, num_spans)

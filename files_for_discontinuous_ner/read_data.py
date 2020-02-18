@@ -28,6 +28,8 @@ use_dep = False
 
 use_tree_feature = True
 output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-tf'
+MAX_DEPTH = 3
+MAX_PATH = 5
 
 # ALL_INSTANCES,
 # ALL_WITH_ENTITIES,
@@ -285,18 +287,50 @@ def getTreeFeature_Path(token_i, token_i_idx, token_j, token_j_idx, tree):
     token_j_path = getPathToRoot(token_j, token_j_idx, tree)
     i, j, lca = getLowestCommonAncestor(token_i_path, token_j_path)
 
+    # ret = []
+    # ii = 0
+    # while ii < i:
+    #     ret.append(tree.nodes[token_i_path[ii]].cat)
+    #     ii += 1
+    # ret.append(tree.nodes[lca].cat)
+    # jj = j - 1
+    # while jj >= 0:
+    #     ret.append(tree.nodes[token_j_path[jj]].cat)
+    #     jj -= 1
+    # ret = '-'.join(ret)
+    # return ret
+
     ret = []
     ii = 0
-    while ii < i:
-        ret.append(tree.nodes[token_i_path[ii]].cat)
-        ii += 1
-    ret.append(tree.nodes[lca].cat)
-    jj = j - 1
-    while jj >= 0:
-        ret.append(tree.nodes[token_j_path[jj]].cat)
-        jj -= 1
+    jj = 0
+    i_exhaust = False
+    j_exhaust = False
+    while (not i_exhaust) or (not j_exhaust):
+
+        if ii < i:
+            ret.append(tree.nodes[token_i_path[ii]].cat)
+            ii += 1
+        else:
+            i_exhaust = True
+
+        if len(ret) >= MAX_PATH:
+            break
+
+        if jj < j:
+            ret.append(tree.nodes[token_j_path[jj]].cat)
+            jj += 1
+        else:
+            j_exhaust = True
+
+        if len(ret) >= MAX_PATH:
+            break
+
+    if len(ret) < MAX_PATH:
+        ret.append(tree.nodes[lca].cat)
+
     ret = '-'.join(ret)
     return ret
+
 
 def getTreeFeature_LcaRootSyntax(token_i, token_i_idx, token_j, token_j_idx, tree):
     token_i_path = getPathToRoot(token_i, token_i_idx, tree)
@@ -310,6 +344,8 @@ def getTreeFeature_LcaLeftDepth(token_i, token_i_idx, token_j, token_j_idx, tree
     token_j_path = getPathToRoot(token_j, token_j_idx, tree)
     i, j, lca = getLowestCommonAncestor(token_i_path, token_j_path)
 
+    if i > MAX_DEPTH:
+        i = MAX_DEPTH
     return str(i)
 
 def getTreeFeature_LcaRightDepth(token_i, token_i_idx, token_j, token_j_idx, tree):
@@ -317,6 +353,8 @@ def getTreeFeature_LcaRightDepth(token_i, token_i_idx, token_j, token_j_idx, tre
     token_j_path = getPathToRoot(token_j, token_j_idx, tree)
     i, j, lca = getLowestCommonAncestor(token_i_path, token_j_path)
 
+    if j > MAX_DEPTH:
+        j = MAX_DEPTH
     return str(j)
 
 # i is the idx in tree.leaf_nodes, while token_i_idx is the idx in tree.nodes
