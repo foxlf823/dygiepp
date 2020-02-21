@@ -23,7 +23,8 @@ class ScaledDotProductAttention(nn.Module):
     def forward(self, q, k, v, mask, tf_features):
         # attn = torch.bmm(q, k.transpose(1, 2)) + tf_f1_features + tf_f2_features + tf_f3_features + tf_f4_features + \
         #                                         tf_f5_features
-        attn = torch.bmm(q, k.transpose(1, 2)) + tf_features
+        attn = torch.bmm(q, k.transpose(1, 2))
+        attn = attn + tf_features
         attn = attn / self.temperature
 
         if mask is not None:
@@ -51,6 +52,9 @@ class MultiHeadAttention(nn.Module):
         nn.init.normal_(self.w_qs.weight, mean=0, std=np.sqrt(2.0 / (d_model + d_k)))
         nn.init.normal_(self.w_ks.weight, mean=0, std=np.sqrt(2.0 / (d_model + d_k)))
         nn.init.normal_(self.w_vs.weight, mean=0, std=np.sqrt(2.0 / (d_model + d_v)))
+        # nn.init.xavier_normal_(self.w_qs.weight)
+        # nn.init.xavier_normal_(self.w_ks.weight)
+        # nn.init.xavier_normal_(self.w_vs.weight)
 
         # self._tf_f1_embedding = nn.Embedding(vocab.get_vocab_size('tf_f1_labels'), n_head)
         # self._tf_f2_embedding = nn.Embedding(vocab.get_vocab_size('tf_f2_labels'), n_head)
@@ -58,6 +62,7 @@ class MultiHeadAttention(nn.Module):
         # self._tf_f4_embedding = nn.Embedding(vocab.get_vocab_size('tf_f4_labels'), n_head)
         # self._tf_f5_embedding = nn.Embedding(vocab.get_vocab_size('tf_f5_labels'), n_head)
         self._tf_embedding = nn.Embedding(vocab.get_vocab_size('tf_labels'), n_head)
+        # torch.nn.init.xavier_normal_(self._tf_embedding.weight, gain=3)
 
         self.attention = ScaledDotProductAttention(temperature=np.power(d_k, 0.5))
         self.layer_norm = nn.LayerNorm(d_model)

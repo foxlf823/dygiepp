@@ -120,7 +120,7 @@ local params = {
   // tree feature, transformer
   use_tree_feature: true,
   // 'transformer', 'gcn'
-  tree_feature_arch: 'gcn',
+  tree_feature_arch: 'transformer',
   tft_layers: 1,
   tft_head: 20,
   tft_kv: 20,

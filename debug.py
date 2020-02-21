@@ -17,11 +17,9 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s
 
 from allennlp.commands import main
 
-experiment_name="genia"
-# data_root="./data/genia/processed-data/json-ner"
-# data_root="./data/genia/processed-data/json-treebank"
-data_root="./data/genia/processed-data/json-tf"
-config_file="./training_config/genia_working_example_debug.jsonnet"
+experiment_name="scierc"
+data_root="./data/scierc/processed_data/json"
+config_file="./training_config/scierc_working_example.jsonnet"
 cuda_device=-1
 
 

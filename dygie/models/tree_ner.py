@@ -65,6 +65,8 @@ class TreeNer(Model):
                  use_syntax: bool,
                  use_tree_feature: bool,
                  tree_feature_first: bool,
+                 tree_feature_usage: str,
+                 tree_feature_arch: str,
                  tree_span_filter: bool = False,
                  lexical_dropout: float = 0.2,
                  lstm_dropout: float = 0.4,
@@ -132,8 +134,15 @@ class TreeNer(Model):
             # self._tf_f5_embedding = Embedding(vocab.get_vocab_size('tf_f5_labels'), 1)
             # self._tf_transformer = MyTransformer.from_params(vocab=vocab,
             #                                   params=modules.pop("tf_transformer"))
-            self._tf_layer = TreeFeature.from_params(vocab=vocab,
-                                               params=modules.pop("tf_layer"))
+
+            self._tree_feature_arch = tree_feature_arch
+            if self._tree_feature_arch == 'transformer':
+                self._tf_layer = MyTransformer.from_params(vocab=vocab,
+                                                  params=modules.pop("tf_transformer"))
+            else:
+                self._tf_layer = TreeFeature.from_params(vocab=vocab,
+                                                         params=modules.pop("tf_layer"))
+            self._tree_feature_usage = tree_feature_usage
 
         initializer(self)
 
@@ -191,9 +200,11 @@ class TreeNer(Model):
             # contextualized_embeddings = self._tf_transformer(contextualized_embeddings, text_mask, tf_f1, tf_f2, tf_f3,
             #                      tf_f4, tf_f5)
 
-            # contextualized_embeddings = self._tf_layer(tf, contextualized_embeddings, text_mask)
-            tree_feature_embeddings = self._tf_layer(tf, contextualized_embeddings, text_mask)
-            contextualized_embeddings = torch.cat([contextualized_embeddings, tree_feature_embeddings], dim=-1)
+            if self._tree_feature_usage == 'add':
+                contextualized_embeddings = self._tf_layer(tf, contextualized_embeddings, text_mask)
+            else:
+                tree_feature_embeddings = self._tf_layer(tf, contextualized_embeddings, text_mask)
+                contextualized_embeddings = torch.cat([contextualized_embeddings, tree_feature_embeddings], dim=-1)
 
         # Shape: (batch_size, num_spans)
         span_mask = (spans[:, :, 0] >= 0).float()

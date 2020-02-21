@@ -18,7 +18,7 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s
 from allennlp.commands import main
 
 experiment_name="ace05"
-data_root="./data/ace05/processed-data/json-treebank"
+data_root="./data/ace05/processed-data/json-tf"
 config_file="./training_config/ace05_working_example_debug.jsonnet"
 cuda_device=-1
 

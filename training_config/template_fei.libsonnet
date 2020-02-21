@@ -436,6 +436,8 @@ function(p) {
     tree_feature_first: p.tree_feature_first,
     tree_span_filter: p.tree_span_filter,
     use_tree_feature: p.use_tree_feature,
+    tree_feature_usage: p.tree_feature_usage,
+    tree_feature_arch: p.tree_feature_arch,
     modules: {
       ner: {
         mention_feedforward: make_feedforward(span_emb_dim),
@@ -465,6 +467,8 @@ function(p) {
         d_k: p.tft_kv,
         d_v: p.tft_kv,
         dropout: p.tft_dropout,
+        tree_feature_usage: p.tree_feature_usage,
+        feature_dim: p.tree_feature_dim,
       },
       tf_layer: {
         input_dim: context_layer_output_size,
@@ -472,6 +476,7 @@ function(p) {
         layer: p.tree_feature_layer,
         dropout: p.tree_feature_dropout,
         initializer: module_initializer,
+        tree_feature_usage: p.tree_feature_usage,
       },
     } ,
     // feili
