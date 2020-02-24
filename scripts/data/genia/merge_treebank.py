@@ -393,6 +393,52 @@ def getTreeFeature_Path(token_i, token_i_idx, token_j, token_j_idx, tree):
     ret = '-'.join(ret)
     return ret
 
+def getTreeFeature_DirectionalPath1(token_i, token_i_idx, token_j, token_j_idx, tree):
+    token_i_path = getPathToRoot(token_i, token_i_idx, tree)
+    token_j_path = getPathToRoot(token_j, token_j_idx, tree)
+    i, j, lca = getLowestCommonAncestor(token_i_path, token_j_path)
+
+    ret = ''
+    steps = []
+    ii = 0
+    while ii < i:
+        if len(steps) >= MAX_PATH:
+            break
+        ret += tree.nodes[token_i_path[ii]].cat if len(steps) == 0 else ">"+tree.nodes[token_i_path[ii]].cat
+        steps.append(tree.nodes[token_i_path[ii]].cat)
+        ii += 1
+    if len(steps) < MAX_PATH:
+        ret += tree.nodes[lca].cat if len(steps) == 0 else ">"+tree.nodes[lca].cat
+        steps.append(tree.nodes[lca].cat)
+    jj = j - 1
+    while jj >= 0:
+        if len(steps) >= MAX_PATH:
+            break
+        ret += tree.nodes[token_j_path[jj]].cat if len(steps) == 0 else "<"+tree.nodes[token_j_path[jj]].cat
+        steps.append(tree.nodes[token_j_path[jj]].cat)
+        jj -= 1
+
+    return ret
+
+def getTreeFeature_DirectionalPath2(token_i, token_i_idx, token_j, token_j_idx, tree):
+    token_i_path = getPathToRoot(token_i, token_i_idx, tree)
+    token_j_path = getPathToRoot(token_j, token_j_idx, tree)
+    i, j, lca = getLowestCommonAncestor(token_i_path, token_j_path)
+
+    ret = ''
+    ii = 0
+    while ii < i:
+        ret += tree.nodes[token_i_path[ii]].cat if len(ret) == 0 else ">"+tree.nodes[token_i_path[ii]].cat
+        ii += 1
+    ret += tree.nodes[lca].cat if len(ret) == 0 else ">"+tree.nodes[lca].cat
+    jj = j - 1
+    while jj >= 0:
+        ret += tree.nodes[token_j_path[jj]].cat if len(ret) == 0 else "<"+tree.nodes[token_j_path[jj]].cat
+        jj -= 1
+
+    return ret
+
+
 def getTreeFeature_LcaRootSyntax(token_i, token_i_idx, token_j, token_j_idx, tree):
     token_i_path = getPathToRoot(token_i, token_i_idx, tree)
     token_j_path = getPathToRoot(token_j, token_j_idx, tree)
@@ -450,8 +496,10 @@ def getTreeFeatures(tree):
     tree_features['F3'] = []
     tree_features['F4'] = []
     tree_features['F5'] = []
+    tree_features['F6'] = []
+    tree_features['F7'] = []
     for i, (token_i, token_i_idx) in enumerate(zip(tree.leaf_nodes, tree.leaf_nodes_idx)):
-        f1, f2, f3, f4, f5 = [], [], [], [], []
+        f1, f2, f3, f4, f5, f6, f7 = [], [], [], [], [], [], []
         for j, (token_j, token_j_idx) in enumerate(zip(tree.leaf_nodes, tree.leaf_nodes_idx)):
             if i == j:
                 f1.append('self')
@@ -459,17 +507,23 @@ def getTreeFeatures(tree):
                 f3.append('self')
                 f4.append('self')
                 f5.append('self')
+                f6.append('self')
+                f7.append('self')
             else:
                 f1.append(getTreeFeature_Path(token_i, token_i_idx, token_j, token_j_idx, tree))
                 f2.append(getTreeFeature_LcaRootSyntax(token_i, token_i_idx, token_j, token_j_idx, tree)) # lowest common ancestor
                 f3.append(getTreeFeature_LcaLeftDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
                 f4.append(getTreeFeature_LcaRightDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
                 f5.append(getTreeFeature_LcaMatch(i, token_i, token_i_idx, j, token_j, token_j_idx, tree))
+                f6.append(getTreeFeature_DirectionalPath1(token_i, token_i_idx, token_j, token_j_idx, tree))
+                f7.append(getTreeFeature_DirectionalPath2(token_i, token_i_idx, token_j, token_j_idx, tree))
         tree_features['F1'].append(f1)
         tree_features['F2'].append(f2)
         tree_features['F3'].append(f3)
         tree_features['F4'].append(f4)
         tree_features['F5'].append(f5)
+        tree_features['F6'].append(f6)
+        tree_features['F7'].append(f7)
 
     return tree_features
 
