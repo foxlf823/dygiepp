@@ -378,7 +378,10 @@ class DisNER(Model):
         #     res["events"] = output_dict["events"]
         #
         # return res
-        raise NotImplementedError
+        res = {}
+        res["ner"] = output_dict['ner']['decoded_ner']
+        res["relation"] = output_dict['relation']['decoded_relations']
+        return res
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         """

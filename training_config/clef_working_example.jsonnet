@@ -54,6 +54,8 @@ local params = {
     relation: 1.0,
     coref: 0.0,
     events: 0.0,
+    span: 0,
+    seq: 0,
   },
   loss_weights_events: {   // Loss weights for trigger and argument ID in events.
     trigger: 1.0,
@@ -118,9 +120,9 @@ local params = {
   // dep-based GCN
   use_dep: false,
   // tree feature, transformer
-  use_tree_feature: true,
+  use_tree_feature: false,
   // 'transformer', 'gcn'
-  tree_feature_arch: 'transformer',
+  tree_feature_arch: 'gcn',
   tft_layers: 1,
   tft_head: 20,
   tft_kv: 20,
@@ -128,7 +130,7 @@ local params = {
   tree_feature_dim: 20,
   tree_feature_layer: 1,
   tree_feature_dropout: 0.1,
-  tree_feature_dict: ['F6'],
+  tree_feature_dict: ['F1'],
   // add, concat
   tree_feature_usage: 'concat',
 };

@@ -129,7 +129,7 @@ local params = {
   tree_feature_dim: 64,
   tree_feature_layer: 1,
   tree_feature_dropout: 0.1,
-  tree_feature_dict: ['F6'],
+  tree_feature_dict: ['F2'],
   // add, concat
   tree_feature_usage: 'concat',
 };

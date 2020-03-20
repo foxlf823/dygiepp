@@ -498,6 +498,9 @@ def do_statistics(instances):
     entity_1seg = 0
     entity_2seg = 0
     entity_3seg = 0
+    entity_regular = 0
+    entity_overlapped = 0
+    entity_discontinuous = 0
     stats = dict(span=0, span_common=0)
     for instance in instances:
         for entity in instance['entities']:
@@ -516,11 +519,51 @@ def do_statistics(instances):
                 if end-start+1 <= 6:
                     stats['span_common'] += 1
 
+            if len(entity['span']) > 1:
+                entity_discontinuous += 1
+                entity['rod'] = 'd'
+                continue
+            find_overlapped = False
+            for other in instance['entities']:
+                if entity['span'] == other['span']:
+                    continue
+                for entity_span in entity['span']:
+                    entity_span_start = int(entity_span.split(',')[0])
+                    entity_span_end = int(entity_span.split(',')[1])
+                    for other_span in other['span']:
+                        other_span_start = int(other_span.split(',')[0])
+                        other_span_end = int(other_span.split(',')[1])
+                        if entity_span_start >= other_span_start and entity_span_start <= other_span_end:
+                            find_overlapped = True
+                            break
+                        if entity_span_end >= other_span_start and entity_span_end <= other_span_end:
+                            find_overlapped = True
+                            break
+                    if find_overlapped:
+                        break
+                if find_overlapped:
+                    break
+            if find_overlapped:
+                entity_overlapped += 1
+                entity['rod'] = 'o'
+            else:
+                entity_regular += 1
+                entity['rod'] = 'r'
+
+
+
     print("sentence number: {}".format(len(instances)))
     print("1 segment entity: {}".format(entity_1seg))
     print("2 segment entity: {}".format(entity_2seg))
     print("3 segment entity: {}".format(entity_3seg))
     print(stats)
+    print("regular {}, overlapped {}, discontinuous {}".format(entity_regular, entity_overlapped, entity_discontinuous))
+
+def filter_entity(instances):
+    for instance in instances:
+        # for entity in instance['entities']:
+        #     pass
+        pass
 
 import os
 def transfer_into_dygie(instances, output_file):
@@ -726,21 +769,23 @@ if __name__ == "__main__":
     with StanfordCoreNLP('./stanford-corenlp-full-2018-10-05', memory='8g', timeout=60000) as nlp:
 
         filtered_instances = read_file(train_file, instanceFilter)
-        # do_statistics(filtered_instances)
-        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'train.json'))
+        do_statistics(filtered_instances)
+        filtered_instances = filter_entity(filtered_instances)
+        do_statistics(filtered_instances)
+        # transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'train.json'))
         # prepare_data_for_ctake(filtered_instances, os.path.join(ctake_input_dir, 'train'))
         # transfer_ctake_data_into_dygie(filtered_instances, os.path.join(ctake_output_dir, 'train'), os.path.join(output_dir, 'train.json'))
 
         filtered_instances = read_file(dev_file, instanceFilter)
         # do_statistics(filtered_instances)
-        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'dev.json'))
+        # transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'dev.json'))
         # prepare_data_for_ctake(filtered_instances, os.path.join(ctake_input_dir, 'dev'))
         # transfer_ctake_data_into_dygie(filtered_instances, os.path.join(ctake_output_dir, 'dev'),
         #                                os.path.join(output_dir, 'dev.json'))
 
         filtered_instances = read_file(test_file, instanceFilter)
         # do_statistics(filtered_instances)
-        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'test.json'))
+        # transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'test.json'))
         # prepare_data_for_ctake(filtered_instances, os.path.join(ctake_input_dir, 'test'))
         # transfer_ctake_data_into_dygie(filtered_instances, os.path.join(ctake_output_dir, 'test'),
         #                                os.path.join(output_dir, 'test.json'))

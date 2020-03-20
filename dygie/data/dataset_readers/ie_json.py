@@ -253,7 +253,8 @@ class IEJsonReader(DatasetReader):
             lines = f.readlines()
         # If we're debugging, only do the first 10 documents.
         if self._debug:
-            lines = lines[:self._n_debug_docs]
+            # lines = lines[:self._n_debug_docs]
+            lines = [lines[0], lines[-1]]
 
         for line in lines:
             # Loop over the documents.

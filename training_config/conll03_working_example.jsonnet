@@ -16,17 +16,17 @@ local params = {
   target: "ner",
 
   // If debugging, don't load expensive embedding files.
-  debug: true,
+  debug: false,
 
   // Specifies the token-level features that will be created.
   use_glove: false,
   tune_glove: false,
   use_char: false,
   use_elmo: false,
-  elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
-  elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
-  // elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_options.json",
-  // elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_weights.hdf5",
+  //elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
+  //elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5",
+  elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_options.json",
+  elmo_weight: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway_5.5B/elmo_2x4096_512_2048cnn_2xhighway_5.5B_weights.hdf5",
   use_attentive_span_extractor: false,
   use_bert_base: true,
   use_bert_large: false,
@@ -38,7 +38,7 @@ local params = {
   rel_prop_dropout_f: 0.0,
 
   // Specifies the model parameters.
-  use_lstm: false,
+  use_lstm: true,
   lstm_hidden_size: 200,
   lstm_n_layers: 1,
   lstm_dropout: 0.0,
@@ -46,7 +46,7 @@ local params = {
   feedforward_layers: 2,
   char_n_filters: 50,
   feedforward_dim: 150,
-  max_span_width: 8,
+  max_span_width: 6,
   feedforward_dropout: 0.4,
   lexical_dropout: 0.5,
   loss_weights: {          // Loss weights for the modules.
@@ -58,8 +58,8 @@ local params = {
     seq: 0,
   },
   loss_weights_events: {   // Loss weights for trigger and argument ID in events.
-    trigger: 0.0,
-    arguments: 0.0,
+    trigger: 1.0,
+    arguments: 1.0,
   },
 
   // Coref settings.
@@ -76,9 +76,8 @@ local params = {
   events_positive_label_weight: 1.0,
 
   // Model training
-  batch_size: 2,
-  instances_per_epoch: 2,
-  num_epochs: 1,
+  batch_size: 8,
+  num_epochs: 250,
   patience: 15,
   optimizer: {
     type: "bert_adam",
@@ -97,7 +96,7 @@ local params = {
     patience: 4
   },
   // add by feili
-  shuffle: false,
+  shuffle: true,
   evaluate_on_test: true,
   // endpoint, pooling, conv, attention, rnn
   span_extractor: "endpoint",
@@ -107,7 +106,7 @@ local params = {
   // seq_ner: flat, stacked
   label_scheme: "stacked",
   // use tree info or not
-  use_tree: true,
+  use_tree: false,
   tree_prop: 1,
   use_syntax: false,
   tree_dropout: 0,
@@ -116,15 +115,17 @@ local params = {
   tree_span_filter: false,
   tree_match_filter: false,
   tree_feature_first: true,
-  // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12
+  // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12, clinicalbert_biobert_disch_100000
   bert_name: "multi_cased_L-12_H-768_A-12",
+  // dep-based GCN
+  use_dep: false,
   // tree feature, transformer
-  use_tree_feature: true,
+  use_tree_feature: false,
   // 'transformer', 'gcn'
   tree_feature_arch: 'gcn',
   tft_layers: 1,
-  tft_head: 48,
-  tft_kv: 16,
+  tft_head: 64,
+  tft_kv: 12,
   tft_dropout: 0.1,
   tree_feature_dim: 64,
   tree_feature_layer: 1,

@@ -121,15 +121,15 @@ local params = {
   // tree feature, transformer
   use_tree_feature: true,
   // 'transformer', 'gcn'
-  tree_feature_arch: 'gcn',
+  tree_feature_arch: 'transformer',
   tft_layers: 1,
-  tft_head: 48,
-  tft_kv: 16,
+  tft_head: 64,
+  tft_kv: 12,
   tft_dropout: 0.1,
   tree_feature_dim: 64,
   tree_feature_layer: 1,
   tree_feature_dropout: 0.1,
-  tree_feature_dict: ['F6'],
+  tree_feature_dict: ['F1'],
   // add, concat
   tree_feature_usage: 'concat',
 };
