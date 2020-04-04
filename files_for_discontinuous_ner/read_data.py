@@ -23,7 +23,7 @@ ctake_output_dir = '/Users/feili/tools/apache-ctakes-4.0.0/clef_output'
 # output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-ctake'
 # output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-ctake-matched'
 
-use_dep = False
+use_dep = True
 # output_dir = '/Users/feili/PycharmProjects/dygiepp/data/clef/processed-data/json-dep'
 
 use_tree_feature = True
@@ -423,6 +423,9 @@ def getTreeFeature_LcaMatch(token_i_leaf_idx, token_i, token_i_idx, token_j_leaf
     else:
         return 'nm' # not match
 
+def getTreeFeature_POStag(token_i, token_i_idx, token_j, token_j_idx, tree):
+    return token_i.cat+"_"+token_j.cat
+
 def getTreeFeatures(tree):
     tree_features = {}
     if not tree.match:
@@ -435,9 +438,9 @@ def getTreeFeatures(tree):
     tree_features['F4'] = []
     tree_features['F5'] = []
     tree_features['F6'] = []
-    tree_features['F7'] = []
+    # tree_features['F7'] = []
     for i, (token_i, token_i_idx) in enumerate(zip(tree.leaf_nodes, tree.leaf_nodes_idx)):
-        f1, f2, f3, f4, f5, f6, f7 = [], [], [], [], [], [], []
+        f1, f2, f3, f4, f5, f6 = [], [], [], [], [], []
         for j, (token_j, token_j_idx) in enumerate(zip(tree.leaf_nodes, tree.leaf_nodes_idx)):
             if i == j:
                 f1.append('self')
@@ -446,22 +449,23 @@ def getTreeFeatures(tree):
                 f4.append('self')
                 f5.append('self')
                 f6.append('self')
-                f7.append('self')
+                # f7.append('self')
             else:
                 f1.append(getTreeFeature_Path(token_i, token_i_idx, token_j, token_j_idx, tree))
                 f2.append(getTreeFeature_LcaRootSyntax(token_i, token_i_idx, token_j, token_j_idx, tree)) # lowest common ancestor
                 f3.append(getTreeFeature_LcaLeftDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
                 f4.append(getTreeFeature_LcaRightDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
                 f5.append(getTreeFeature_LcaMatch(i, token_i, token_i_idx, j, token_j, token_j_idx, tree))
-                f6.append(getTreeFeature_DirectionalPath1(token_i, token_i_idx, token_j, token_j_idx, tree))
-                f7.append(getTreeFeature_DirectionalPath2(token_i, token_i_idx, token_j, token_j_idx, tree))
+                f6.append(getTreeFeature_POStag(token_i, token_i_idx, token_j, token_j_idx, tree))
+                # f6.append(getTreeFeature_DirectionalPath1(token_i, token_i_idx, token_j, token_j_idx, tree))
+                # f7.append(getTreeFeature_DirectionalPath2(token_i, token_i_idx, token_j, token_j_idx, tree))
         tree_features['F1'].append(f1)
         tree_features['F2'].append(f2)
         tree_features['F3'].append(f3)
         tree_features['F4'].append(f4)
         tree_features['F5'].append(f5)
         tree_features['F6'].append(f6)
-        tree_features['F7'].append(f7)
+        # tree_features['F7'].append(f7)
 
     return tree_features
 
@@ -559,11 +563,15 @@ def do_statistics(instances):
     print(stats)
     print("regular {}, overlapped {}, discontinuous {}".format(entity_regular, entity_overlapped, entity_discontinuous))
 
-def filter_entity(instances):
-    for instance in instances:
-        # for entity in instance['entities']:
-        #     pass
-        pass
+def is_span_overlapped(start, end, other_start, other_end):
+    if other_start < start and other_end >= start:
+        return True
+    elif other_start <= end and other_end > end:
+        return True
+    elif other_start >= start and other_end <= end:
+        return True
+    else:
+        return False
 
 import os
 def transfer_into_dygie(instances, output_file):
@@ -578,12 +586,25 @@ def transfer_into_dygie(instances, output_file):
         ner_for_this_sentence = []
         doc['relations'] = []
         relation_for_this_sentence = []
-        for entity in instance['entities']:
+        for entity_idx, entity in enumerate(instance['entities']):
             for span in entity['span']:
                 start = int(span.split(',')[0])
                 end = int(span.split(',')[1])
                 entity_output = [start, end, entity['type']]
                 ner_for_this_sentence.append(entity_output)
+
+                # detect whether a span is overlapped with another
+                # for other_idx, other in enumerate(instance['entities']):
+                #     if other_idx == entity_idx:
+                #         continue
+                #     for other_span in other['span']:
+                #         other_start = int(other_span.split(',')[0])
+                #         other_end = int(other_span.split(',')[1])
+                #         if start == other_start and end == other_end:
+                #             continue
+                #         if is_span_overlapped(start, end, other_start, other_end):
+                #             relation_for_this_sentence.append([start, end, other_start, other_end, "Overlap"])
+
 
             n_spans = len(entity['span'])
             if rel_directed:
@@ -769,23 +790,21 @@ if __name__ == "__main__":
     with StanfordCoreNLP('./stanford-corenlp-full-2018-10-05', memory='8g', timeout=60000) as nlp:
 
         filtered_instances = read_file(train_file, instanceFilter)
-        do_statistics(filtered_instances)
-        filtered_instances = filter_entity(filtered_instances)
-        do_statistics(filtered_instances)
-        # transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'train.json'))
+        # do_statistics(filtered_instances)
+        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'train.json'))
         # prepare_data_for_ctake(filtered_instances, os.path.join(ctake_input_dir, 'train'))
         # transfer_ctake_data_into_dygie(filtered_instances, os.path.join(ctake_output_dir, 'train'), os.path.join(output_dir, 'train.json'))
 
         filtered_instances = read_file(dev_file, instanceFilter)
         # do_statistics(filtered_instances)
-        # transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'dev.json'))
+        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'dev.json'))
         # prepare_data_for_ctake(filtered_instances, os.path.join(ctake_input_dir, 'dev'))
         # transfer_ctake_data_into_dygie(filtered_instances, os.path.join(ctake_output_dir, 'dev'),
         #                                os.path.join(output_dir, 'dev.json'))
 
         filtered_instances = read_file(test_file, instanceFilter)
         # do_statistics(filtered_instances)
-        # transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'test.json'))
+        transfer_into_dygie(filtered_instances, os.path.join(output_dir, 'test.json'))
         # prepare_data_for_ctake(filtered_instances, os.path.join(ctake_input_dir, 'test'))
         # transfer_ctake_data_into_dygie(filtered_instances, os.path.join(ctake_output_dir, 'test'),
         #                                os.path.join(output_dir, 'test.json'))

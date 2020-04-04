@@ -25,6 +25,7 @@ from dygie.models.events import EventExtractor
 from dygie.training.joint_metrics import JointMetrics
 from dygie.models.transformer import MyTransformer
 from dygie.models.tree_feature import TreeFeature
+from dygie.models.tree_feature_mhsa import TreeFeatureMHSA
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -142,6 +143,7 @@ class DisNER(Model):
             self._dep_tree = TreeDep.from_params(vocab=vocab,
                                               feature_size=feature_size,
                                               params=modules.pop("dep_tree"))
+            self._tree_feature_usage = tree_feature_usage
 
         self.use_tree_feature = use_tree_feature
         if self.use_tree_feature:
@@ -155,9 +157,14 @@ class DisNER(Model):
             if self._tree_feature_arch == 'transformer':
                 self._tf_layer = MyTransformer.from_params(vocab=vocab,
                                                   params=modules.pop("tf_transformer"))
-            else:
+            elif self._tree_feature_arch == 'gcn':
                 self._tf_layer = TreeFeature.from_params(vocab=vocab,
                                                          params=modules.pop("tf_layer"))
+            elif self._tree_feature_arch == 'mhsa':
+                self._tf_layer = TreeFeatureMHSA.from_params(vocab=vocab,
+                                                         params=modules.pop("tf_mhsa"))
+            else:
+                raise RuntimeError("wrong tree_feature_arch: {}".format(self._tree_feature_arch))
             self._tree_feature_usage = tree_feature_usage
 
         initializer(self)
@@ -212,7 +219,11 @@ class DisNER(Model):
 
         if self.use_dep:
             dep_span_children = dep_span_children + 1
-            contextualized_embeddings = self._dep_tree(dep_span_children, contextualized_embeddings, text_mask)
+            if self._tree_feature_usage == 'add':
+                contextualized_embeddings = self._dep_tree(dep_span_children, contextualized_embeddings, text_mask)
+            else:
+                dep_feature_embeddings = self._dep_tree(dep_span_children, contextualized_embeddings, text_mask)
+                contextualized_embeddings = torch.cat([contextualized_embeddings, dep_feature_embeddings], dim=-1)
 
         if self.use_tree_feature:
             # tf_mask = (tf_f1[:, :, :] >= 0).float()

@@ -492,38 +492,39 @@ def getTreeFeatures(tree):
     # list_list, denotes the relation between token_i and token_j
     # e.g., given a sentence t1 t2 t3, return [[t1_t1, t1_t2, t1_t3],[t2_t1, t2_t2, t2_t3],[t3 ...]]
     tree_features['F1'] = []
-    tree_features['F2'] = []
-    tree_features['F3'] = []
-    tree_features['F4'] = []
+    # tree_features['F2'] = []
+    # tree_features['F3'] = []
+    # tree_features['F4'] = []
     tree_features['F5'] = []
-    tree_features['F6'] = []
-    tree_features['F7'] = []
+    # tree_features['F6'] = []
+    # tree_features['F7'] = []
     for i, (token_i, token_i_idx) in enumerate(zip(tree.leaf_nodes, tree.leaf_nodes_idx)):
-        f1, f2, f3, f4, f5, f6, f7 = [], [], [], [], [], [], []
+        # f1, f2, f3, f4, f5, f6, f7 = [], [], [], [], [], [], []
+        f1, f5 = [], []
         for j, (token_j, token_j_idx) in enumerate(zip(tree.leaf_nodes, tree.leaf_nodes_idx)):
             if i == j:
                 f1.append('self')
-                f2.append('self')
-                f3.append('self')
-                f4.append('self')
+                # f2.append('self')
+                # f3.append('self')
+                # f4.append('self')
                 f5.append('self')
-                f6.append('self')
-                f7.append('self')
+                # f6.append('self')
+                # f7.append('self')
             else:
                 f1.append(getTreeFeature_Path(token_i, token_i_idx, token_j, token_j_idx, tree))
-                f2.append(getTreeFeature_LcaRootSyntax(token_i, token_i_idx, token_j, token_j_idx, tree)) # lowest common ancestor
-                f3.append(getTreeFeature_LcaLeftDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
-                f4.append(getTreeFeature_LcaRightDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
+                # f2.append(getTreeFeature_LcaRootSyntax(token_i, token_i_idx, token_j, token_j_idx, tree)) # lowest common ancestor
+                # f3.append(getTreeFeature_LcaLeftDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
+                # f4.append(getTreeFeature_LcaRightDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
                 f5.append(getTreeFeature_LcaMatch(i, token_i, token_i_idx, j, token_j, token_j_idx, tree))
-                f6.append(getTreeFeature_DirectionalPath1(token_i, token_i_idx, token_j, token_j_idx, tree))
-                f7.append(getTreeFeature_DirectionalPath2(token_i, token_i_idx, token_j, token_j_idx, tree))
+                # f6.append(getTreeFeature_DirectionalPath1(token_i, token_i_idx, token_j, token_j_idx, tree))
+                # f7.append(getTreeFeature_DirectionalPath2(token_i, token_i_idx, token_j, token_j_idx, tree))
         tree_features['F1'].append(f1)
-        tree_features['F2'].append(f2)
-        tree_features['F3'].append(f3)
-        tree_features['F4'].append(f4)
+        # tree_features['F2'].append(f2)
+        # tree_features['F3'].append(f3)
+        # tree_features['F4'].append(f4)
         tree_features['F5'].append(f5)
-        tree_features['F6'].append(f6)
-        tree_features['F7'].append(f7)
+        # tree_features['F6'].append(f6)
+        # tree_features['F7'].append(f7)
 
     return tree_features
 
@@ -604,6 +605,16 @@ def get_excluded():
 
 from collections import Counter
 
+def is_span_overlapped(start, end, other_start, other_end):
+    if other_start < start and other_end >= start:
+        return True
+    elif other_start <= end and other_end > end:
+        return True
+    elif other_start >= start and other_end <= end:
+        return True
+    else:
+        return False
+
 def one_fold(fold, coref_types, out_dir, keep_excluded):
     """Add coref field to json, one fold."""
     print("Running fold {0}.".format(fold))
@@ -614,12 +625,25 @@ def one_fold(fold, coref_types, out_dir, keep_excluded):
         with open(path.join(out_dir, "{0}.json".format(fold)), "w") as f_out:
             for counter, line in enumerate(f_json):
                 doc = json.loads(line)
-                for sentence, ner in zip(doc['sentences'], doc['ner']):
-                    for e in ner:
+
+                for sentence, ner, relation_for_this_sentence in zip(doc['sentences'], doc['ner'], doc['relations']):
+                    for entity_idx, entity in enumerate(ner):
                         entity_stat['entity'] += 1
-                        entity_length[e[1]-e[0]+1] += 1
-                        if e[1] - e[0] + 1 <= 8:
+                        entity_length[entity[1]-entity[0]+1] += 1
+                        if entity[1] - entity[0] + 1 <= 8:
                             entity_stat['entity_common'] += 1
+                        # for other_idx, other in enumerate(ner):
+                        #     if other_idx == entity_idx:
+                        #         continue
+                        #     if entity[0] == other[0] and entity[1] == other[1]:
+                        #         continue
+                        #     if is_span_overlapped(entity[0], entity[1], other[0], other[1]):
+                        #         relation_for_this_sentence.append(
+                        #             [entity[0], entity[1], other[0],
+                        #              other[1], "Overlap"])
+                    pass
+
+
                 pmid = int(doc["doc_key"].split("_")[0])
                 medline_id = alignment.loc[pmid][0]
                 # xml_file = path.join(coref_dir, str(medline_id) + ".xml")

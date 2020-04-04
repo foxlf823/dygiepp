@@ -4,6 +4,16 @@ from allennlp.training.metrics.metric import Metric
 
 from dygie.training.f1 import compute_f1
 
+def is_clique(entity, relations):
+    entity = list(entity)
+
+    for idx, fragment1 in enumerate(entity):
+        for idy, fragment2 in enumerate(entity):
+            if idx < idy:
+                if (fragment1, fragment2) not in relations and (fragment2, fragment1) not in relations:
+                    return False
+
+    return True
 
 class RelationMetrics1(Metric):
     """
@@ -30,13 +40,16 @@ class RelationMetrics1(Metric):
             for ner_span, _ in metadata['ner_dict'].items():
                 entity = set()
                 entity.add(ner_span)
-                for (arg1_span, arg2_span), _ in metadata['relation_dict'].items():
+                for (arg1_span, arg2_span), label in metadata['relation_dict'].items():
+                    # if label != 'Combined':
+                    #     continue
                     if ner_span == arg1_span:
                         entity.add(arg2_span)
                     if ner_span == arg2_span:
                         entity.add(arg1_span)
                 if entity not in entities:
-                    entities.append(entity)
+                    if is_clique(entity, metadata['relation_dict']):
+                        entities.append(entity)
             gold_entities.append(entities)
 
         # get predict entities from predicted_ner_list and predicted_relation_list
@@ -46,13 +59,16 @@ class RelationMetrics1(Metric):
             for ner_span, _ in predicted_ner.items():
                 entity = set()
                 entity.add(ner_span)
-                for (arg1_span, arg2_span), _ in predicted_relation.items():
+                for (arg1_span, arg2_span), label in predicted_relation.items():
+                    # if label != 'Combined':
+                    #     continue
                     if ner_span == arg1_span:
                         entity.add(arg2_span)
                     if ner_span == arg2_span:
                         entity.add(arg1_span)
                 if entity not in entities:
-                    entities.append(entity)
+                    if is_clique(entity, predicted_relation):
+                        entities.append(entity)
             predict_entities.append(entities)
 
         # compute p r f1

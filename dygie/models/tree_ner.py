@@ -22,6 +22,7 @@ from dygie.models.tree import Tree
 from allennlp.modules.token_embedders.embedding import Embedding
 from dygie.models.transformer import MyTransformer
 from dygie.models.tree_feature import TreeFeature
+from dygie.models.tree_feature_mhsa import TreeFeatureMHSA
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -139,9 +140,14 @@ class TreeNer(Model):
             if self._tree_feature_arch == 'transformer':
                 self._tf_layer = MyTransformer.from_params(vocab=vocab,
                                                   params=modules.pop("tf_transformer"))
-            else:
+            elif self._tree_feature_arch == 'gcn':
                 self._tf_layer = TreeFeature.from_params(vocab=vocab,
                                                          params=modules.pop("tf_layer"))
+            elif self._tree_feature_arch == 'mhsa':
+                self._tf_layer = TreeFeatureMHSA.from_params(vocab=vocab,
+                                                         params=modules.pop("tf_mhsa"))
+            else:
+                raise RuntimeError("wrong tree_feature_arch: {}".format(self._tree_feature_arch))
             self._tree_feature_usage = tree_feature_usage
 
         initializer(self)
@@ -276,6 +282,7 @@ class TreeNer(Model):
         if self._loss_weights['ner'] > 0:
             output_ner = self._ner(
                 spans, span_mask, span_embeddings, sentence_lengths, ner_labels, metadata)
+            self._ner.decode(output_ner)
 
         if self._loss_weights['coref'] > 0:
             output_coref = self._coref.predict_labels(output_coref, metadata)
@@ -295,7 +302,11 @@ class TreeNer(Model):
 
     @overrides
     def decode(self, output_dict: Dict[str, torch.Tensor]):
-        raise NotImplementedError
+
+
+        res = {}
+        res["ner"] = output_dict['ner']['decoded_ner']
+        return res
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         """

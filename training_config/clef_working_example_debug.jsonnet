@@ -20,7 +20,9 @@ local params = {
 
   // Specifies the token-level features that will be created.
   use_glove: false,
-  tune_glove: false,
+  tune_glove: true,
+  glove_path: "../emb/pubmed+wiki+pitts-nopunct-lower-cbow-n10.txt",
+  glove_dim: 200,
   use_char: false,
   use_elmo: false,
   //elmo_option: "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json",
@@ -118,11 +120,11 @@ local params = {
   // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12, clinicalbert_biobert_disch_100000
   bert_name: "clinicalbert_biobert_disch_100000",
   // dep-based GCN
-  use_dep: false,
+  use_dep: true,
   // tree feature, transformer
-  use_tree_feature: true,
-  // 'transformer', 'gcn'
-  tree_feature_arch: 'transformer',
+  use_tree_feature: false,
+  // 'transformer', 'gcn', 'mhsa'
+  tree_feature_arch: 'gcn',
   tft_layers: 1,
   tft_head: 20,
   tft_kv: 20,
@@ -131,8 +133,10 @@ local params = {
   tree_feature_layer: 1,
   tree_feature_dropout: 0.1,
   tree_feature_dict: ['F1'],
+  mhsa_head: 2,
   // add, concat
   tree_feature_usage: 'concat',
+  use_overlap_rel: false,
 };
 
 ////////////////////

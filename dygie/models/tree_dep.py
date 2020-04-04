@@ -27,6 +27,8 @@ class TreeDep(Model):
     def __init__(self,
                  vocab: Vocabulary,
                  span_emb_dim: int,
+                 feature_dim: int,
+                 tree_feature_usage: str,
                  tree_prop: int = 1,
                  tree_dropout: float = 0.0,
                  tree_children: str = 'attention',
@@ -38,6 +40,7 @@ class TreeDep(Model):
         assert span_emb_dim % 2 == 0
 
         self.layers = tree_prop
+        self._tree_feature_usage = tree_feature_usage
 
         # self._f_network = torch.nn.ModuleList()
         # for idx in range(self._tree_prop):
@@ -51,8 +54,11 @@ class TreeDep(Model):
         self.W = torch.nn.ModuleList()
         self.gcn_drop = torch.nn.ModuleList()
         for layer in range(self.layers):
-            self.W.append(torch.nn.Linear(span_emb_dim, span_emb_dim))
+            self.W.append(torch.nn.Linear(span_emb_dim, span_emb_dim, bias=False))
             self.gcn_drop.append(torch.nn.Dropout(p=tree_dropout))
+
+        if self._tree_feature_usage == 'concat':
+            self._A_network = TimeDistributed(torch.nn.Linear(span_emb_dim, feature_dim, bias=False))
 
         initializer(self)
 
@@ -73,6 +79,9 @@ class TreeDep(Model):
             gAxW = F.relu(AxW)
             gAxW = self.gcn_drop[l](gAxW)
             gcn_inputs = gAxW * text_mask.unsqueeze(-1)
+
+        if self._tree_feature_usage == 'concat':
+            gcn_inputs = self._A_network(gcn_inputs)
 
         return gcn_inputs
 

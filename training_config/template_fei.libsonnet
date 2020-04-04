@@ -26,7 +26,7 @@ function(p) {
     "events": ["trig_class_f1", "arg_class_f1"],
   },
 
-  local glove_dim = if p.debug then 50 else 300,
+  local glove_dim = if p.debug then 50 else p.glove_dim,
   local elmo_dim = if p.debug then 256 else 1024,
   local bert_base_dim = 768,
   local bert_large_dim = 1024,
@@ -79,6 +79,9 @@ function(p) {
   //),
   // local endpoint_span_emb_dim = 2 * context_layer_output_size + p.feature_size,
   local endpoint_span_emb_dim = if p.use_tree_feature then
+                                ( if p.tree_feature_usage == 'add' then 2 * context_layer_output_size + p.feature_size
+                                    else 2 * (context_layer_output_size+p.tree_feature_dim) + p.feature_size
+                                ) else if p.use_dep then
                                 ( if p.tree_feature_usage == 'add' then 2 * context_layer_output_size + p.feature_size
                                     else 2 * (context_layer_output_size+p.tree_feature_dim) + p.feature_size
                                 )
@@ -193,8 +196,9 @@ function(p) {
       [if p.use_glove then "tokens"]: {
         type: "embedding",
         // pretrained_file: if p.debug then null else "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.840B.300d.txt.gz",
-        pretrained_file: if p.debug then "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.6B.50d.txt.gz" else "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.840B.300d.txt.gz",
-        embedding_dim: if p.debug then 50 else 300,
+        // pretrained_file: if p.debug then "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.6B.50d.txt.gz" else "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.840B.300d.txt.gz",
+        pretrained_file: if p.debug then "https://s3-us-west-2.amazonaws.com/allennlp/datasets/glove/glove.6B.50d.txt.gz" else p.glove_path,
+        embedding_dim: if p.debug then 50 else p.glove_dim,
         trainable: p.tune_glove
       },
       [if p.use_char then "token_characters"]: {
@@ -258,6 +262,23 @@ function(p) {
     num_width_embeddings: p.max_span_width,
     span_width_embedding_dim: p.feature_size
   },
+
+  local optimizer = (if p.use_bert_base == true
+    then {
+        type: "bert_adam",
+        lr: 1e-3,
+        warmup: 0.1,
+        t_total: 200000,
+        weight_decay: 0.0,
+        parameter_groups: [
+          [["_text_field_embedder"], {"type": "bert_adam", "lr": 5e-5, "warmup": 0.2, "t_total": 200000, "weight_decay": 0.01}],
+        ],
+    } else {
+        type: "adam",
+        lr: 1e-3,
+        weight_decay: 1e-6,
+    }
+  ),
 
   // Not using these.
   local iterator = if co_train then {
@@ -478,6 +499,15 @@ function(p) {
         initializer: module_initializer,
         tree_feature_usage: p.tree_feature_usage,
       },
+      tf_mhsa: {
+        input_dim: context_layer_output_size,
+        feature_dim: p.tree_feature_dim,
+        layer: p.tree_feature_layer,
+        dropout: p.tree_feature_dropout,
+        initializer: module_initializer,
+        tree_feature_usage: p.tree_feature_usage,
+        n_head: p.mhsa_head,
+      },
     } ,
     // feili
     span_extractor: span_extractor
@@ -532,6 +562,8 @@ function(p) {
         initializer: module_initializer,
         tree_dropout: p.tree_dropout,
         tree_children: p.tree_children,
+        tree_feature_usage: p.tree_feature_usage,
+        feature_dim: p.tree_feature_dim,
       },
       tf_transformer: {
         d_input: context_layer_output_size,
@@ -551,6 +583,15 @@ function(p) {
         dropout: p.tree_feature_dropout,
         initializer: module_initializer,
         tree_feature_usage: p.tree_feature_usage,
+      },
+      tf_mhsa: {
+        input_dim: context_layer_output_size,
+        feature_dim: p.tree_feature_dim,
+        layer: p.tree_feature_layer,
+        dropout: p.tree_feature_dropout,
+        initializer: module_initializer,
+        tree_feature_usage: p.tree_feature_usage,
+        n_head: p.mhsa_head,
       },
     },
     // feili
@@ -577,6 +618,7 @@ function(p) {
     tree_span_filter: p.tree_span_filter,
     tree_match_filter: p.tree_match_filter,
     tree_feature_dict: p.tree_feature_dict,
+    use_overlap_rel: p.use_overlap_rel,
   },
   train_data_path: std.extVar("ie_train_data_path"),
   validation_data_path: std.extVar("ie_dev_data_path"),
@@ -603,7 +645,7 @@ function(p) {
     cuda_device : [std.parseInt(x) for x in std.split(std.extVar("cuda_device"), ",")],
     validation_metric: validation_metrics[p.target],
     learning_rate_scheduler: p.learning_rate_scheduler,
-    optimizer: p.optimizer,
+    optimizer: optimizer,
     [if "moving_average_decay" in p then "moving_average"]: {
       type: "exponential",
       decay: p.moving_average_decay

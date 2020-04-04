@@ -75,7 +75,8 @@ def format_label_fields(sentence: List[str],
                         tree_match_filter: bool,
                         dep_tree: Dict[str, Any],
                         tf: Dict[str, Any],
-                        tree_feature_dict: List[str]) -> Tuple[Dict[Tuple[int,int],str],
+                        tree_feature_dict: List[str],
+                        use_overlap_rel: bool) -> Tuple[Dict[Tuple[int,int],str],
                                                       Dict[Tuple[Tuple[int,int],Tuple[int,int]],str],
                                                       Dict[Tuple[int,int],int], Dict[Tuple[int, int],str],
                                                     Dict[Tuple[int, int],List[Tuple[int, int]]],
@@ -95,12 +96,18 @@ def format_label_fields(sentence: List[str],
     )
 
     # Relations
-    relation_dict = MissingDict("",
-        (
-            ((  (span1_start-ss, span1_end-ss),  (span2_start-ss, span2_end-ss)   ), relation)
-            for (span1_start, span1_end, span2_start, span2_end, relation) in relations
-        )
-    )
+    # relation_dict = MissingDict("",
+    #     (
+    #         ((  (span1_start-ss, span1_end-ss),  (span2_start-ss, span2_end-ss)   ), relation)
+    #         for (span1_start, span1_end, span2_start, span2_end, relation) in relations
+    #     )
+    # )
+    relation_dict_values = []
+    for (span1_start, span1_end, span2_start, span2_end, relation) in relations:
+        # if relation == 'Overlap' and not use_overlap_rel:
+        #     continue
+        relation_dict_values.append((((span1_start - ss, span1_end - ss), (span2_start - ss, span2_end - ss)), relation))
+    relation_dict = MissingDict("", relation_dict_values)
 
     # Coref
     cluster_dict = MissingDict(-1,
@@ -227,7 +234,8 @@ class IEJsonReader(DatasetReader):
                  label_scheme: str = 'flat',
                  tree_span_filter: bool = False,
                  tree_match_filter: bool = False,
-                 tree_feature_dict: List[str] = None) -> None:
+                 tree_feature_dict: List[str] = None,
+                 use_overlap_rel: bool = False) -> None:
         super().__init__(lazy)
         assert (context_width % 2 == 1) and (context_width > 0)
         self.k = int( (context_width - 1) / 2)
@@ -241,6 +249,7 @@ class IEJsonReader(DatasetReader):
         self._tree_span_filter = tree_span_filter
         self._tree_match_filter = tree_match_filter
         self._tree_feature_dict = tree_feature_dict
+        self.use_overlap_rel = use_overlap_rel
 
     @overrides
     def _read(self, file_path: str):
@@ -254,7 +263,8 @@ class IEJsonReader(DatasetReader):
         # If we're debugging, only do the first 10 documents.
         if self._debug:
             # lines = lines[:self._n_debug_docs]
-            lines = [lines[0], lines[-1]]
+            lines = [lines[0], lines[13]]
+            # lines = [lines[7]]
 
         for line in lines:
             # Loop over the documents.
@@ -299,7 +309,8 @@ class IEJsonReader(DatasetReader):
                 # Make span indices relative to sentence instead of document.
                 ner_dict, relation_dict, cluster_dict, trigger_dict, argument_dict, syntax_dict, children_dict, dep_children_dict, \
                 tf_dict\
-                    = format_label_fields(sentence, ner, relations, cluster_tmp, events, sentence_start, tree, self._tree_match_filter, dep, tf, self._tree_feature_dict)
+                    = format_label_fields(sentence, ner, relations, cluster_tmp, events, sentence_start, tree,
+                                          self._tree_match_filter, dep, tf, self._tree_feature_dict, self.use_overlap_rel)
                 sentence_start += len(sentence)
                 instance = self.text_to_instance(
                     sentence, ner_dict, relation_dict, cluster_dict, trigger_dict, argument_dict,
