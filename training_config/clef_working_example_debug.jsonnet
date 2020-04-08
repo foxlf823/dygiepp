@@ -109,9 +109,9 @@ local params = {
   label_scheme: "stacked",
   // use tree info or not
   use_tree: false,
-  tree_prop: 1,
+  tree_prop: 2,
   use_syntax: false,
-  tree_dropout: 0,
+  tree_dropout: 0.2,
   // pooling, conv, attention, rnn
   tree_children: 'attention',
   tree_span_filter: false,
@@ -120,7 +120,7 @@ local params = {
   // scibert_scivocab_cased, multi_cased_L-12_H-768_A-12, clinicalbert_biobert_disch_100000
   bert_name: "clinicalbert_biobert_disch_100000",
   // dep-based GCN
-  use_dep: true,
+  use_dep: false,
   // tree feature, transformer
   use_tree_feature: false,
   // 'transformer', 'gcn', 'mhsa'
@@ -137,6 +137,7 @@ local params = {
   // add, concat
   tree_feature_usage: 'concat',
   use_overlap_rel: false,
+  use_biaffine_rel: true,
 };
 
 ////////////////////

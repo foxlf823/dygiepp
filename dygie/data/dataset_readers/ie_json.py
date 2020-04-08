@@ -104,8 +104,8 @@ def format_label_fields(sentence: List[str],
     # )
     relation_dict_values = []
     for (span1_start, span1_end, span2_start, span2_end, relation) in relations:
-        # if relation == 'Overlap' and not use_overlap_rel:
-        #     continue
+        if relation == 'Overlap' and not use_overlap_rel:
+            continue
         relation_dict_values.append((((span1_start - ss, span1_end - ss), (span2_start - ss, span2_end - ss)), relation))
     relation_dict = MissingDict("", relation_dict_values)
 
@@ -263,13 +263,15 @@ class IEJsonReader(DatasetReader):
         # If we're debugging, only do the first 10 documents.
         if self._debug:
             # lines = lines[:self._n_debug_docs]
-            lines = [lines[0], lines[13]]
-            # lines = [lines[7]]
+            # lines = [lines[0], lines[1]]
+            lines = [lines[230]]
 
         for line in lines:
             # Loop over the documents.
             sentence_start = 0
+            # print("start: {}".format(line))
             js = json.loads(line)
+            # print("end")
             doc_key = js["doc_key"]
             dataset = js["dataset"] if "dataset" in js else None
 

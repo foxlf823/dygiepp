@@ -19,6 +19,8 @@ import argparse
 import shared
 import copy
 
+from stanfordcorenlp import StanfordCoreNLP
+from tqdm import tqdm
 
 genia_base = "./data/genia"
 genia_raw = f"{genia_base}/raw-data"
@@ -31,11 +33,15 @@ alignment_file = f"{genia_raw}/align/alignment.csv"
 
 # output_directory = "json-treebank"
 # output_directory = "json-matched"
-output_directory = "json-tf"
+# output_directory = "json-tf"
+output_directory = "json-dep"
 only_match = False
-use_tree_feature = True
+use_tree_feature = False
 MAX_DEPTH = 3
 MAX_PATH = 5
+
+use_dep = True
+use_tree = False
 
 alignment = pd.read_csv(alignment_file).set_index("ner")
 
@@ -495,19 +501,19 @@ def getTreeFeatures(tree):
     # tree_features['F2'] = []
     # tree_features['F3'] = []
     # tree_features['F4'] = []
-    tree_features['F5'] = []
+    # tree_features['F5'] = []
     # tree_features['F6'] = []
     # tree_features['F7'] = []
     for i, (token_i, token_i_idx) in enumerate(zip(tree.leaf_nodes, tree.leaf_nodes_idx)):
         # f1, f2, f3, f4, f5, f6, f7 = [], [], [], [], [], [], []
-        f1, f5 = [], []
+        f1 = []
         for j, (token_j, token_j_idx) in enumerate(zip(tree.leaf_nodes, tree.leaf_nodes_idx)):
             if i == j:
                 f1.append('self')
                 # f2.append('self')
                 # f3.append('self')
                 # f4.append('self')
-                f5.append('self')
+                # f5.append('self')
                 # f6.append('self')
                 # f7.append('self')
             else:
@@ -515,33 +521,52 @@ def getTreeFeatures(tree):
                 # f2.append(getTreeFeature_LcaRootSyntax(token_i, token_i_idx, token_j, token_j_idx, tree)) # lowest common ancestor
                 # f3.append(getTreeFeature_LcaLeftDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
                 # f4.append(getTreeFeature_LcaRightDepth(token_i, token_i_idx, token_j, token_j_idx, tree))
-                f5.append(getTreeFeature_LcaMatch(i, token_i, token_i_idx, j, token_j, token_j_idx, tree))
+                # f5.append(getTreeFeature_LcaMatch(i, token_i, token_i_idx, j, token_j, token_j_idx, tree))
                 # f6.append(getTreeFeature_DirectionalPath1(token_i, token_i_idx, token_j, token_j_idx, tree))
                 # f7.append(getTreeFeature_DirectionalPath2(token_i, token_i_idx, token_j, token_j_idx, tree))
         tree_features['F1'].append(f1)
         # tree_features['F2'].append(f2)
         # tree_features['F3'].append(f3)
         # tree_features['F4'].append(f4)
-        tree_features['F5'].append(f5)
+        # tree_features['F5'].append(f5)
         # tree_features['F6'].append(f6)
         # tree_features['F7'].append(f7)
 
     return tree_features
 
+def getDepTree1(tokens, edges_list):
+    nodes = [[] for token in tokens]
+    nodes_dict = {"nodes":nodes}
 
-def build_tree(soup, doc, tokenized, pmid, medline_id):
+    for edge in edges_list:
+        if edge['dep'] == 'ROOT':
+            continue
+        if edge['dependent']-1 not in nodes[edge['governor']-1]:
+            nodes[edge['governor']-1].append(edge['dependent']-1)
+        if edge['governor']-1 not in nodes[edge['dependent']-1]:
+            nodes[edge['dependent']-1].append(edge['governor']-1)
+
+    return nodes_dict
+
+def build_tree(soup, doc, tokenized, pmid, medline_id, nlp):
     tree_sentences = soup.find_all("sentence")
 
     # assert(len(tree_sentences)==len(sentences))
     if len(tree_sentences) != len(doc['sentences']):
-        print("doc mismatch, term doc: {}, doc len {}, treebank doc: {}, doc len {}".format(pmid, len(doc['sentences']), medline_id, len(tree_sentences)))
+        # print("doc mismatch, term doc: {}, doc len {}, treebank doc: {}, doc len {}".format(pmid, len(doc['sentences']), medline_id, len(tree_sentences)))
         stats_treebank['doc_mismatches'] += 1
     else:
         stats_treebank['doc_matches'] += 1
 
-    trees = []
+    trees = [] if use_tree else None
     if use_tree_feature:
         tf = []
+    else:
+        tf = None
+    if use_dep:
+        dep = []
+    else:
+        dep = None
     start = 0
     for sentence in doc['sentences']:
         b_match = False
@@ -555,26 +580,45 @@ def build_tree(soup, doc, tokenized, pmid, medline_id):
         if b_match:
             tree.get_span_for_leaf_node(sentence)
             if not tree.match:
-                print(
-                    "sent mismatch, term doc: {}, term sentence: {}, treebank doc: {}, treebank sentence {}".format(
-                        pmid, sentence, medline_id, tree.show_leaf_node()))
+                # print(
+                #     "sent mismatch, term doc: {}, term sentence: {}, treebank doc: {}, treebank sentence {}".format(
+                #         pmid, sentence, medline_id, tree.show_leaf_node()))
                 stats_treebank['sent_mismatches'] += 1
             else:
                 stats_treebank['sent_matches'] += 1
             tree.get_span_for_node(sentence)
-            trees.append(tree.to_json())
+            if use_tree:
+                trees.append(tree.to_json())
             if use_tree_feature:
                 tree_features = getTreeFeatures(tree)
                 tf.append(tree_features)
+            if use_dep:
+                try:
+                    nlp_res_raw = nlp.annotate(' '.join(sentence), properties={'annotators': 'tokenize,ssplit,pos,parse'})
+                    nlp_res = json.loads(nlp_res_raw)
+                    if len(nlp_res['sentences']) >= 2:
+                        print("tokenization mismatch: {}".format(sentence))
+                        dep.append({})
+                    else:
+                        dep_nodes = getDepTree1(nlp_res['sentences'][0]['tokens'],
+                                                nlp_res['sentences'][0]['basicDependencies'])
+                        dep.append(dep_nodes)
+                except Exception as e:
+                    print("nlp timeout: {}".format(sentence))
+                    dep.append({})
+
             start = start + idx + 1
         else:
-            print(
-                "sent not find tree, term doc: {}, term sentence: {}, treebank doc: {}".format(
-                    pmid, sentence, medline_id))
+            # print(
+            #     "sent not find tree, term doc: {}, term sentence: {}, treebank doc: {}".format(
+            #         pmid, sentence, medline_id))
             stats_treebank['sent_notree'] += 1
-            trees.append({})
+            if use_tree:
+                trees.append({})
             if use_tree_feature:
                 tf.append({})
+            if use_dep:
+                dep.append({})
 
 
     # for tree_sentence, sentence in zip(tree_sentences, doc['sentences']):
@@ -591,10 +635,8 @@ def build_tree(soup, doc, tokenized, pmid, medline_id):
     #     tree.get_span_for_node(sentence)
     #     trees.append(tree.to_json())
 
-    if use_tree_feature:
-        return trees, tf
-    else:
-        return trees, None
+    return trees, tf, dep
+
 
 
 def get_excluded():
@@ -615,79 +657,88 @@ def is_span_overlapped(start, end, other_start, other_end):
     else:
         return False
 
-def one_fold(fold, coref_types, out_dir, keep_excluded):
+def one_fold(fold, coref_types, out_dir, keep_excluded, nlp):
     """Add coref field to json, one fold."""
     print("Running fold {0}.".format(fold))
     entity_length = Counter()
     entity_stat = dict(entity=0, entity_common=0)
     excluded = get_excluded()
-    with open(path.join(json_dir, "{0}.json".format(fold))) as f_json:
-        with open(path.join(out_dir, "{0}.json".format(fold)), "w") as f_out:
-            for counter, line in enumerate(f_json):
-                doc = json.loads(line)
+    f_json = open(path.join(json_dir, "{0}.json".format(fold)))
+    f_out = open(path.join(out_dir, "{0}.json".format(fold)), "w")
 
-                for sentence, ner, relation_for_this_sentence in zip(doc['sentences'], doc['ner'], doc['relations']):
-                    for entity_idx, entity in enumerate(ner):
-                        entity_stat['entity'] += 1
-                        entity_length[entity[1]-entity[0]+1] += 1
-                        if entity[1] - entity[0] + 1 <= 8:
-                            entity_stat['entity_common'] += 1
-                        # for other_idx, other in enumerate(ner):
-                        #     if other_idx == entity_idx:
-                        #         continue
-                        #     if entity[0] == other[0] and entity[1] == other[1]:
-                        #         continue
-                        #     if is_span_overlapped(entity[0], entity[1], other[0], other[1]):
-                        #         relation_for_this_sentence.append(
-                        #             [entity[0], entity[1], other[0],
-                        #              other[1], "Overlap"])
-                    pass
+    lines = f_json.readlines()
+    for line in tqdm(lines):
+        doc = json.loads(line)
+
+        for sentence, ner, relation_for_this_sentence in zip(doc['sentences'], doc['ner'], doc['relations']):
+            for entity_idx, entity in enumerate(ner):
+                entity_stat['entity'] += 1
+                entity_length[entity[1]-entity[0]+1] += 1
+                if entity[1] - entity[0] + 1 <= 8:
+                    entity_stat['entity_common'] += 1
+                for other_idx, other in enumerate(ner):
+                    if other_idx == entity_idx:
+                        continue
+                    if entity[0] == other[0] and entity[1] == other[1]:
+                        continue
+                    if is_span_overlapped(entity[0], entity[1], other[0], other[1]):
+                        relation_for_this_sentence.append(
+                            [entity[0], entity[1], other[0],
+                             other[1], "Overlap"])
+            pass
 
 
-                pmid = int(doc["doc_key"].split("_")[0])
-                medline_id = alignment.loc[pmid][0]
-                # xml_file = path.join(coref_dir, str(medline_id) + ".xml")
-                # sents_flat = shared.flatten(doc["sentences"])
-                xml_tree_file = path.join(tree_dir, str(medline_id) + ".xml")
-                # with open(xml_file, "r") as f_xml:
-                #     soup = BS(f_xml.read(), "lxml")
-                #     corefs = Corefs(soup, sents_flat, coref_types)
-                # doc["clusters"] = corefs.cluster_spans
-                with open(xml_tree_file, 'r') as f_xml:
-                    soup = BS(f_xml.read(), "lxml")
-                    trees, tf = build_tree(soup, doc, True, pmid, medline_id)
-                doc["trees"] = trees
-                doc['tf'] = tf
-                if only_match:
-                    good = True
-                    for tree in doc['trees']:
-                        if 'match' not in tree:
-                            good = False
-                            break
-                        if not tree['match']:
-                            good = False
-                            break
-                    if good:
-                        # Save unless it's bad and we're excluding bad documents.
-                        if keep_excluded or doc["doc_key"] not in excluded:
-                            f_out.write(json.dumps(doc) + "\n")
-                    # else:
-                    #     a = 1
-                else:
-                    # Save unless it's bad and we're excluding bad documents.
-                    if keep_excluded or doc["doc_key"] not in excluded:
-                        f_out.write(json.dumps(doc) + "\n")
+        pmid = int(doc["doc_key"].split("_")[0])
+        medline_id = alignment.loc[pmid][0]
+        # xml_file = path.join(coref_dir, str(medline_id) + ".xml")
+        # sents_flat = shared.flatten(doc["sentences"])
+        xml_tree_file = path.join(tree_dir, str(medline_id) + ".xml")
+        # with open(xml_file, "r") as f_xml:
+        #     soup = BS(f_xml.read(), "lxml")
+        #     corefs = Corefs(soup, sents_flat, coref_types)
+        # doc["clusters"] = corefs.cluster_spans
+        with open(xml_tree_file, 'r') as f_xml:
+            soup = BS(f_xml.read(), "lxml")
+            trees, tf, dep = build_tree(soup, doc, True, pmid, medline_id, nlp)
+        if use_tree:
+            doc["trees"] = trees
+        if use_tree_feature:
+            doc['tf'] = tf
+        if use_dep:
+            doc['dep'] = dep
+        if only_match:
+            good = True
+            for tree in doc['trees']:
+                if 'match' not in tree:
+                    good = False
+                    break
+                if not tree['match']:
+                    good = False
+                    break
+            if good:
+                # Save unless it's bad and we're excluding bad documents.
+                if keep_excluded or doc["doc_key"] not in excluded:
+                    f_out.write(json.dumps(doc) + "\n")
+            # else:
+            #     a = 1
+        else:
+            # Save unless it's bad and we're excluding bad documents.
+            if keep_excluded or doc["doc_key"] not in excluded:
+                f_out.write(json.dumps(doc) + "\n")
+
+    f_json.close()
+    f_out.close()
     print(entity_length)
     print(entity_stat)
 
-def get_clusters(coref_types, out_dir, keep_excluded):
+def get_clusters(coref_types, out_dir, keep_excluded, nlp):
     """Add coref to json, filtering to only keep coref roots and `coref_types`."""
     global stats
     stats = dict(no_matches=0, successful_matches=0, different_num_matches=0)
     global stats_treebank
     stats_treebank = dict(doc_mismatches=0, doc_matches=0, sent_mismatches=0, sent_matches=0, sent_notree=0)
     for fold in ["train", "dev", "test"]:
-        one_fold(fold, coref_types, out_dir, keep_excluded)
+        one_fold(fold, coref_types, out_dir, keep_excluded, nlp)
     print(stats)
     print(stats_treebank)
 
@@ -719,7 +770,9 @@ def main():
     if not path.exists(out_dir):
         os.mkdir(out_dir)
 
-    get_clusters(coref_types, out_dir, args.keep_excluded)
+    with StanfordCoreNLP('./files_for_discontinuous_ner/stanford-corenlp-full-2018-10-05', memory='8g', timeout=100000) as nlp:
+
+        get_clusters(coref_types, out_dir, args.keep_excluded, nlp)
 
 
 if __name__ == '__main__':

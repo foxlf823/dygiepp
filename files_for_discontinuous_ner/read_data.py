@@ -594,16 +594,16 @@ def transfer_into_dygie(instances, output_file):
                 ner_for_this_sentence.append(entity_output)
 
                 # detect whether a span is overlapped with another
-                # for other_idx, other in enumerate(instance['entities']):
-                #     if other_idx == entity_idx:
-                #         continue
-                #     for other_span in other['span']:
-                #         other_start = int(other_span.split(',')[0])
-                #         other_end = int(other_span.split(',')[1])
-                #         if start == other_start and end == other_end:
-                #             continue
-                #         if is_span_overlapped(start, end, other_start, other_end):
-                #             relation_for_this_sentence.append([start, end, other_start, other_end, "Overlap"])
+                for other_idx, other in enumerate(instance['entities']):
+                    if other_idx == entity_idx:
+                        continue
+                    for other_span in other['span']:
+                        other_start = int(other_span.split(',')[0])
+                        other_end = int(other_span.split(',')[1])
+                        if start == other_start and end == other_end:
+                            continue
+                        if is_span_overlapped(start, end, other_start, other_end):
+                            relation_for_this_sentence.append([start, end, other_start, other_end, "Overlap"])
 
 
             n_spans = len(entity['span'])

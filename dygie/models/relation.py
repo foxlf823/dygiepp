@@ -34,6 +34,7 @@ class RelationExtractor(Model):
                  feature_size: int,
                  spans_per_word: float,
                  span_emb_dim: int,
+                 use_biaffine_rel: bool,
                  rel_prop: int = 0,
                  rel_prop_dropout_A: float = 0.0,
                  rel_prop_dropout_f: float = 0.0,
@@ -53,8 +54,12 @@ class RelationExtractor(Model):
         self._mention_pruner = Pruner(feedforward_scorer)
 
         # Relation scorer.
-        self._relation_feedforward = relation_feedforward
-        self._relation_scorer = torch.nn.Linear(relation_feedforward.get_output_dim(), self._n_labels)
+        self._use_biaffine_rel = use_biaffine_rel
+        if self._use_biaffine_rel:
+            self._biaffine = torch.nn.Linear(span_emb_dim, span_emb_dim)
+        else:
+            self._relation_feedforward = relation_feedforward
+            self._relation_scorer = torch.nn.Linear(relation_feedforward.get_output_dim(), self._n_labels)
 
         self._spans_per_word = spans_per_word
 
@@ -280,8 +285,31 @@ class RelationExtractor(Model):
         return pair_embeddings
 
     def get_relation_scores(self, top_span_embeddings, top_span_mention_scores):
-        return self._compute_relation_scores(self._compute_span_pair_embeddings(top_span_embeddings),
-                                             top_span_mention_scores)
+        if self._use_biaffine_rel:
+            return self._compute_relation_scores_biaffine(top_span_embeddings, top_span_mention_scores)
+        else:
+            return self._compute_relation_scores(self._compute_span_pair_embeddings(top_span_embeddings),
+                                                 top_span_mention_scores)
+
+    def _compute_relation_scores_biaffine(self, top_span_embeddings, top_span_mention_scores):
+        batch_size = top_span_embeddings.size(0)
+        max_num_spans = top_span_embeddings.size(1)
+
+        AW = self._biaffine(top_span_embeddings)
+        relation_scores_flat = torch.matmul(AW, top_span_embeddings.transpose(1, 2))
+
+        relation_scores = relation_scores_flat.view(batch_size, max_num_spans, max_num_spans, -1)
+
+        # Add the mention scores for each of the candidates.
+
+        relation_scores += (top_span_mention_scores.unsqueeze(-1) +
+                            top_span_mention_scores.transpose(1, 2).unsqueeze(-1))
+
+        shape = [relation_scores.size(0), relation_scores.size(1), relation_scores.size(2), 1]
+        dummy_scores = relation_scores.new_zeros(*shape)
+
+        relation_scores = torch.cat([dummy_scores, relation_scores], -1)
+        return relation_scores
 
     def _compute_relation_scores(self, pairwise_embeddings, top_span_mention_scores):
         batch_size = pairwise_embeddings.size(0)

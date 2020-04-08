@@ -86,6 +86,15 @@ function(p) {
                                     else 2 * (context_layer_output_size+p.tree_feature_dim) + p.feature_size
                                 )
                                 else 2 * context_layer_output_size + p.feature_size,
+  local pooling_span_emb_dim = if p.use_tree_feature then
+                                ( if p.tree_feature_usage == 'add' then context_layer_output_size + p.feature_size
+                                    else (context_layer_output_size+p.tree_feature_dim) + p.feature_size
+                                ) else if p.use_dep then
+                                ( if p.tree_feature_usage == 'add' then context_layer_output_size + p.feature_size
+                                    else (context_layer_output_size+p.tree_feature_dim) + p.feature_size
+                                )
+                                else context_layer_output_size + p.feature_size,
+
   local tree_span_emb_dim = (if p.tree_feature_first then
     (
       (if p.use_syntax then p.feature_size else 0) +
@@ -105,7 +114,8 @@ function(p) {
        )
      )
      else endpoint_span_emb_dim)
-    else if p.span_extractor == "pooling" then context_layer_output_size + p.feature_size
+    //else if p.span_extractor == "pooling" then context_layer_output_size + p.feature_size
+    else if p.span_extractor == "pooling" then pooling_span_emb_dim
     else if p.span_extractor == "conv" then context_layer_output_size + p.feature_size
     else if p.span_extractor == "attention" then context_layer_output_size + p.feature_size
     else if p.span_extractor == "rnn" then context_layer_output_size + p.feature_size
@@ -547,7 +557,8 @@ function(p) {
         rel_prop_dropout_f: p.rel_prop_dropout_f,
         rel_prop: p.rel_prop,
         span_emb_dim: span_emb_dim,
-        initializer: module_initializer
+        initializer: module_initializer,
+        use_biaffine_rel: p.use_biaffine_rel,
       },
       tree: {
         span_emb_dim: tree_span_emb_dim,

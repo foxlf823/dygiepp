@@ -108,9 +108,9 @@ local params = {
   label_scheme: "stacked",
   // use tree info or not
   use_tree: false,
-  tree_prop: 1,
+  tree_prop: 2,
   use_syntax: false,
-  tree_dropout: 0,
+  tree_dropout: 0.2,
   // pooling, conv, attention, rnn
   tree_children: 'attention',
   tree_span_filter: false,
@@ -123,7 +123,7 @@ local params = {
   // tree feature, transformer
   use_tree_feature: false,
   // 'transformer', 'gcn', 'mhsa'
-  tree_feature_arch: 'mhsa',
+  tree_feature_arch: 'gcn',
   tft_layers: 1,
   tft_head: 64,
   tft_kv: 12,
@@ -136,6 +136,7 @@ local params = {
   // add, concat
   tree_feature_usage: 'concat',
   use_overlap_rel: true,
+  use_biaffine_rel: true,
 };
 
 ////////////////////

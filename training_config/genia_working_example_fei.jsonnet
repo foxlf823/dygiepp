@@ -31,7 +31,7 @@ local params = {
   use_bert_base: true,
   use_bert_large: false,
   finetune_bert: true,
-  rel_prop: 0,
+  rel_prop: 1,
   coref_prop: 0,
   context_width: 1,
   rel_prop_dropout_A: 0.0,
@@ -51,7 +51,7 @@ local params = {
   lexical_dropout: 0.5,
   loss_weights: {          // Loss weights for the modules.
     ner: 1.0,
-    relation: 0.0,
+    relation: 1.0,
     coref: 0.0,
     events: 0.0,
     span: 0,
@@ -103,14 +103,14 @@ local params = {
   span_extractor: "endpoint",
   combination: "x,y",
   // model: dygie, cls_ner, seq_ner, tree_ner
-  model: "tree_ner",
+  model: "discontinuous_ner",
   // seq_ner: flat, stacked
   label_scheme: "stacked",
   // use tree info or not
   use_tree: false,
-  tree_prop: 1,
+  tree_prop: 2,
   use_syntax: false,
-  tree_dropout: 0,
+  tree_dropout: 0.2,
   // pooling, conv, attention, rnn
   tree_children: 'attention',
   tree_span_filter: false,
@@ -135,7 +135,8 @@ local params = {
   mhsa_head: 4,
   // add, concat
   tree_feature_usage: 'concat',
-  use_overlap_rel: false,
+  use_overlap_rel: true,
+  use_biaffine_rel: true,
 };
 
 ////////////////////

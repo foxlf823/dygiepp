@@ -101,7 +101,8 @@ class PoolingSpanExtractor(SpanExtractor):
         span_embeddings = util.batched_index_select(sequence_tensor, span_indices, flat_span_indices)
 
         # Shape: (batch_size, num_spans, embedding_dim)
-        span_embeddings = util.masked_max(span_embeddings, span_mask.unsqueeze(-1), dim=2)
+        # span_embeddings = util.masked_max(span_embeddings, span_mask.unsqueeze(-1), dim=2)
+        span_embeddings = util.masked_mean(span_embeddings, span_mask.unsqueeze(-1), dim=2)
 
         if self._span_width_embedding is not None:
             # Embed the span widths and concatenate to the rest of the representations.

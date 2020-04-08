@@ -41,8 +41,9 @@ class RelationMetrics1(Metric):
                 entity = set()
                 entity.add(ner_span)
                 for (arg1_span, arg2_span), label in metadata['relation_dict'].items():
-                    # if label != 'Combined':
-                    #     continue
+                    # Overlap
+                    if label != 'Combined':
+                        continue
                     if ner_span == arg1_span:
                         entity.add(arg2_span)
                     if ner_span == arg2_span:
@@ -60,8 +61,9 @@ class RelationMetrics1(Metric):
                 entity = set()
                 entity.add(ner_span)
                 for (arg1_span, arg2_span), label in predicted_relation.items():
-                    # if label != 'Combined':
-                    #     continue
+                    # Overlap
+                    if label != 'Combined':
+                        continue
                     if ner_span == arg1_span:
                         entity.add(arg2_span)
                     if ner_span == arg2_span:
